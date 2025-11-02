@@ -1,0 +1,99 @@
+<%
+/**
+ * GET /xapi/tochka/statement?statementId=xxx&accountId=yyy
+ * Получение конкретной выписки по ID
+ * 
+ * Query параметры:
+ * - statementId (обязательный) - ID выписки
+ * - accountId (опционально) - ID счёта, если не указан, используется из конфига
+ */
+
+// Проверка метода запроса
+if (request.method !== 'GET') {
+  return response.json(405, { 
+    success: false,
+    error: 'Method Not Allowed',
+    message: 'Используйте GET метод для этого эндпоинта'
+  });
+}
+
+// Получить query параметры
+const urlObj = url(request.url);
+const query = urlObj.query || {};
+
+const statementId = query.statementId;
+const accountId = query.accountId || data.tochkaConfig.account_id;
+
+// Валидация обязательных параметров
+if (!statementId) {
+  return response.json(400, {
+    success: false,
+    error: 'Bad Request',
+    message: 'Обязательный параметр: statementId'
+  });
+}
+
+if (!accountId) {
+  return response.json(400, {
+    success: false,
+    error: 'Bad Request',
+    message: 'accountId не найден ни в параметрах, ни в конфигурации'
+  });
+}
+
+// Построить endpoint для конкретной выписки
+const endpoint = data.ENDPOINTS.STATEMENT(accountId, statementId);
+
+// Выполнить запрос к API Точка
+const result = data.makeApiRequest(endpoint, {
+  method: 'GET'
+});
+
+// Проверка результата
+if (!result.success) {
+  return response.json(result.statusCode || 500, {
+    success: false,
+    error: result.error,
+    message: result.message,
+    details: result.details
+  });
+}
+
+// Извлечь данные выписки
+// API возвращает массив, берём первый элемент
+const statementArray = result.data?.Data?.Statement || [];
+const statementData = Array.isArray(statementArray) && statementArray.length > 0 
+  ? statementArray[0] 
+  : statementArray;
+const status = statementData.status;
+
+// Обработка готовой выписки
+let saveResult = null;
+
+if (status === 'Ready') {
+  // Обновить баланс
+  const endDateBalance = statementData.endDateBalance;
+  if (endDateBalance !== undefined && endDateBalance !== null) {
+    data.updateEndDateBalance(endDateBalance);
+  } else {
+    data.updateLastSyncDate();
+  }
+
+  // Сохранить транзакции
+  const transactions = statementData.Transaction || [];
+  saveResult = data.saveTransactions(transactions);
+}
+
+// Вернуть результат
+return response.json(200, {
+  success: true,
+  data: statementData,
+  status: status,
+  saveResult: saveResult,
+  message: status === 'Ready' 
+    ? `Выписка готова. Сохранено транзакций: ${saveResult?.saved || 0}, пропущено: ${saveResult?.skipped || 0}` 
+    : status === 'Processing' 
+      ? 'Выписка обрабатывается, повторите запрос позже' 
+      : 'Выписка создана, ожидает обработки'
+});
+%>

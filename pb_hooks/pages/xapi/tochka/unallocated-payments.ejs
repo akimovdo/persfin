@@ -1,0 +1,136 @@
+<%
+meta('layout', false);
+// Endpoint: GET /xapi/tochka/unallocated-payments
+// Получение неразнесенных платежей (где accural и wait_income пусты и ignore = false)
+// и списка начислений с балансом > 0 + ожидаемых поступлений
+if (request.method !== 'GET') {
+	return response.json(405, {
+		success: false,
+		error: 'Method not allowed'
+	});
+}
+
+try {
+	// Все объявления переменных в начале блока try
+	var payments, accruals, waitIncomes;
+	var paymentsData = [], accrualsData = [], waitIncomesData = [];
+
+	// Получаем неразнесенные платежи (где оба поля пусты)
+	payments = $app.findRecordsByFilter(
+		'payments',
+		'accural = "" && wait_income = "" && ignore = false',
+	);
+
+	// Получаем начисления с балансом > 0 из view (не принудительно закрытые)
+	accruals = $app.findRecordsByFilter(
+		'accruals_all_with_status',
+		'balance > 0 && is_forced_closed = false',
+		'repayment_date',
+		0,
+		0
+	);
+
+	// Получаем ожидаемые поступления с балансом > 0 из view
+	waitIncomes = $app.findRecordsByFilter(
+		'wait_incomes_with_status',
+		'balance > 0',
+		'-accrual_month',
+		0,
+		0
+	);
+
+	// Формируем данные для ответа
+	for (var i = 0; i < payments.length; i++) {
+		var p = payments[i];
+		paymentsData.push({
+			id: p.id,
+			date: p.getString('date'),
+			creditDebitIndicator: p.getString('creditDebitIndicator'),
+			payer: p.getString('payer'),
+			sum: p.get('sum'),
+			description: p.getString('description'),
+			transactionId: p.getString('transactionId'),
+			ignore: p.getBool('ignore')
+		});
+	}
+
+	// Функция для парсинга числовых значений (как на дашборде)
+	function parseNumeric(value) {
+		if (typeof value === 'number') {
+			return Number.isFinite(value) ? value : 0;
+		}
+		if (typeof value === 'string') {
+			var normalized = value.replace(',', '.');
+			var parsed = Number(normalized);
+			return Number.isFinite(parsed) ? parsed : 0;
+		}
+		if (Array.isArray(value)) {
+			// Проверка на байтовый массив (ASCII-коды)
+			if (value.length > 0 && value.every(function(v){ return typeof v === 'number' && v >= 0 && v <= 255; })) {
+				// Преобразуем байтовый массив в строку
+				try {
+					var str = String.fromCharCode.apply(null, value);
+					var parsed = Number(str);
+					if (Number.isFinite(parsed)) return parsed;
+				} catch (e) {
+					// Игнорируем ошибки
+				}
+			}
+			// Обычный массив - берем первый элемент
+			return value.length ? parseNumeric(value[0]) : 0;
+		}
+		if (value && typeof value === 'object') {
+			if (Object.prototype.hasOwnProperty.call(value, 'value')) {
+				return parseNumeric(value.value);
+			}
+			var firstKey = Object.keys(value)[0];
+			if (firstKey) {
+				return parseNumeric(value[firstKey]);
+			}
+		}
+		return 0;
+	}
+
+	for (var i = 0; i < accruals.length; i++) {
+		var a = accruals[i];
+		var balance = parseNumeric(a.get('balance'));
+		var accrualId = a.getString('accrual_id') || a.id;
+		accrualsData.push({
+			id: accrualId,
+			number: a.getString('number'),
+			name: a.getString('accrual_name'),
+			balance: balance,
+			repaymentDate: a.getString('repayment_date'),
+			partnerName: a.getString('partner_name'),
+			costItemName: a.getString('cost_item_name')
+		});
+	}
+
+	var waitIncomesData = [];
+	for (var i = 0; i < waitIncomes.length; i++) {
+		var w = waitIncomes[i];
+		var sum = parseNumeric(w.get('sum'));
+		var balance = parseNumeric(w.get('balance'));
+		waitIncomesData.push({
+			id: w.getString('wait_income_id'),
+			name: w.getString('name'),
+			sum: sum,
+			balance: balance,
+			accrualMonth: w.getString('accrual_month')
+		});
+	}
+	
+	return response.json(200, {
+		success: true,
+		payments: paymentsData,
+		accruals: accrualsData,
+		waitIncomes: waitIncomesData
+	});
+	
+} catch (error) {
+	return response.json(500, {
+		success: false,
+		message: error.message || String(error)
+	});
+}
+-%>

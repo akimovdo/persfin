@@ -1,0 +1,2140 @@
+<%
+meta('title', 'Дашборд · Все начисления');
+
+const parseNumeric = (value) => {
+	if (typeof value === 'number') {
+		return Number.isFinite(value) ? value : 0;
+	}
+	if (typeof value === 'string') {
+		const normalized = value.replace(',', '.');
+		const parsed = Number(normalized);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+	if (Array.isArray(value)) {
+		// Проверка на байтовый массив (ASCII-коды)
+		if (value.length > 0 && value.every(v => typeof v === 'number' && v >= 0 && v <= 255)) {
+			// Преобразуем байтовый массив в строку
+			try {
+				const str = String.fromCharCode(...value);
+				const parsed = Number(str);
+				if (Number.isFinite(parsed)) return parsed;
+			} catch (e) {
+				// Игнорируем ошибки
+			}
+		}
+		// Обычный массив - берем первый элемент
+		return value.length ? parseNumeric(value[0]) : 0;
+	}
+	if (value && typeof value === 'object') {
+		if (Object.prototype.hasOwnProperty.call(value, 'value')) {
+			return parseNumeric(value.value);
+		}
+		const firstKey = Object.keys(value)[0];
+		if (firstKey) {
+			return parseNumeric(value[firstKey]);
+		}
+	}
+	return 0;
+};
+
+const stripHtml = (value) => {
+	if (!value) return '';
+	return String(value).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+};
+
+const truncateText = (value, limit = 140) => {
+	if (!value) return '';
+	const text = String(value);
+	return text.length > limit ? text.slice(0, limit) + '…' : text;
+};
+
+const getMonthName = (dateString) => {
+	if (!dateString) return '';
+	
+	const months = [
+		'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
+		'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'
+	];
+	
+	const date = new Date(dateString);
+	return months[date.getMonth()];
+};
+
+const formatCurrency = (input) => {
+	if (input === null || input === undefined) {
+		return '—';
+	}
+
+	let amount = input;
+
+	if (typeof amount === 'string') {
+		const normalized = amount.replace(/[^0-9,.-]/g, '').replace(',', '.');
+		amount = Number(normalized);
+	} else if (typeof amount === 'bigint') {
+		amount = Number(amount);
+	} else if (typeof amount === 'object') {
+		if (Object.prototype.hasOwnProperty.call(amount, 'value')) {
+			return formatCurrency(amount.value);
+		}
+		const firstKey = Object.keys(amount)[0];
+		if (firstKey) {
+			return formatCurrency(amount[firstKey]);
+		}
+		return '—';
+	} else if (typeof amount !== 'number') {
+		amount = Number(amount);
+	}
+
+	if (!Number.isFinite(amount)) {
+		return '—';
+	}
+
+	const safe = Math.round(amount * 100) / 100;
+
+	if (!Number.isFinite(safe)) {
+		return '—';
+	}
+
+		const absolute = Math.abs(safe);
+		const sign = safe < 0 ? '-' : '';
+		const integerPart = Math.trunc(absolute);
+		const fractionPart = Math.round((absolute - integerPart) * 100);
+
+		const integerString = String(integerPart).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+		const fractionString = fractionPart.toString().padStart(2, '0');
+
+		return `${sign}${integerString}.${fractionString} ₽`;
+};
+
+const formatDate = (value) => {
+	if (!value) return '—';
+	try {
+		const parsed = new Date(value);
+		if (Number.isNaN(parsed.getTime())) {
+			return value;
+		}
+		return parsed.toLocaleDateString('ru-RU', {
+			day: '2-digit',
+			month: 'short',
+			year: 'numeric'
+		});
+	} catch (error) {
+		return value;
+	}
+};
+
+const getRowClass = (status) => {
+	switch (status) {
+		case 'overdue':
+			return 'bg-error/10';
+		case 'due-today':
+			return 'bg-warning/10';
+		case 'forced':
+			return 'bg-primary/10';
+		case 'closed':
+			return 'bg-success/10';
+		default:
+			return '';
+	}
+};
+
+let accruals = [];
+let forcedClosedAccruals = [];
+let fullyPaidAccruals = [];
+let plannedIncome = [];
+let waitIncomes = [];
+let loadError = null;
+let partnerBalances = {};
+let costItemBalances = {};
+let summary = {
+	total: 0,
+	totalSum: 0,
+	overdue: 0,
+	overdueSum: 0,
+	dueToday: 0,
+	dueTodaySum: 0,
+	upcoming: 0,
+	upcomingSum: 0,
+	closed: 0,
+	closedSum: 0,
+	forced: 0,
+	balanceSum: 0
+};
+
+// Данные банка
+let bankConfig = null;
+let bankBalance = null;
+let lastSyncDate = null;
+
+try {
+	// Загружаем только активные начисления (is_forced_closed = false AND balance != 0)
+	const records = $app.findRecordsByFilter('accruals_all_with_status', 'is_forced_closed = false && balance != 0', '', 0, 0);
+	
+	// Загружаем принудительно закрытые
+	const forcedRecords = $app.findRecordsByFilter('accruals_all_with_status', 'is_forced_closed = true', '', 0, 0);
+	
+	// Загружаем полностью оплаченные (balance = 0)
+	const paidRecords = $app.findRecordsByFilter('accruals_all_with_status', 'is_forced_closed = false && balance = 0', '', 0, 0);
+	
+	// Загружаем планируемые поступления
+	const incomeRecords = $app.findRecordsByFilter('planned_income', '', '-income_date', 0, 0);
+	
+	summary.total = records.length;
+
+	for (let i = 0; i < records.length; i++) {
+		const record = records[i];
+
+		const totalAccrued = parseNumeric(record.get('total_accrued'));
+		const totalPaid = parseNumeric(record.get('total_paid'));
+		const balance = parseNumeric(record.get('balance'));
+
+		const daysDifferenceRaw = record.get('days_difference');
+		const daysDifference = typeof daysDifferenceRaw === 'number' && !Number.isNaN(daysDifferenceRaw)
+			? daysDifferenceRaw
+			: null;
+
+		const paymentsCountRaw = record.get('payments_count');
+		const paymentsCount = typeof paymentsCountRaw === 'number' && !Number.isNaN(paymentsCountRaw)
+			? paymentsCountRaw
+			: parseNumeric(paymentsCountRaw);
+
+		const isForcedClosed = Boolean(record.get('is_forced_closed'));
+
+		let descriptionRaw = '';
+		const descriptionCandidate = record.get('description');
+		if (typeof descriptionCandidate === 'string') {
+			descriptionRaw = descriptionCandidate;
+		}
+
+	const statusInfo = {
+		status: 'active',
+		label: 'В работе',
+		badgeClass: 'badge-info'
+	};
+
+	if (isForcedClosed) {
+		statusInfo.status = 'forced';
+		statusInfo.label = 'Закрыто';
+		statusInfo.badgeClass = 'badge-outline';
+		summary.forced += 1;
+	} else if (balance <= 0) {
+		statusInfo.status = 'closed';
+		statusInfo.label = 'Оплачено';
+		statusInfo.badgeClass = 'badge-success';
+		summary.closed += 1;
+		summary.closedSum += totalAccrued;
+	} else if (typeof daysDifference === 'number' && daysDifference < 0) {
+		statusInfo.status = 'overdue';
+		statusInfo.label = `Просрочено ${Math.abs(daysDifference)} дн.`;
+		statusInfo.badgeClass = 'badge-error';
+		summary.overdue += 1;
+		summary.overdueSum += balance;
+	} else if (daysDifference === 0) {
+		statusInfo.status = 'due-today';
+		statusInfo.label = 'Оплата сегодня';
+		statusInfo.badgeClass = 'badge-warning';
+		summary.dueToday += 1;
+		summary.dueTodaySum += balance;
+	} else {
+		statusInfo.status = 'upcoming';
+		statusInfo.label = typeof daysDifference === 'number'
+			? `До оплаты ${daysDifference} дн.`
+			: 'В работе';
+		statusInfo.badgeClass = 'badge-info';
+		summary.upcoming += 1;
+		summary.upcomingSum += balance;
+	}		
+		summary.totalSum += totalAccrued;
+		if (!isForcedClosed && balance > 0) {
+			summary.balanceSum += balance;
+			
+			// Группируем по партнёрам
+			const partnerName = record.getString('partner_name');
+			if (partnerName) {
+				if (!partnerBalances[partnerName]) {
+					partnerBalances[partnerName] = 0;
+				}
+				partnerBalances[partnerName] += balance;
+			}
+			
+			// Группируем по статьям затрат
+			const costItemName = record.getString('cost_item_name');
+			if (costItemName) {
+				if (!costItemBalances[costItemName]) {
+					costItemBalances[costItemName] = 0;
+				}
+				costItemBalances[costItemName] += balance;
+			}
+		}
+
+		accruals.push({
+			id: record.getString('id'),
+			number: record.getString('number'),
+			name: record.getString('accrual_name'),
+			partnerName: record.getString('partner_name'),
+			costItemName: record.getString('cost_item_name'),
+			totalAccrued,
+			totalPaid,
+			balance,
+			daysDifference,
+			paymentsCount,
+			repaymentDate: record.getString('repayment_date'),
+			description: truncateText(stripHtml(descriptionRaw), 140),
+			created: record.getString('created'),
+			updated: record.getString('updated'),
+			isForcedClosed,
+			status: statusInfo.status,
+			statusLabel: statusInfo.label,
+			statusBadgeClass: statusInfo.badgeClass
+		});
+
+	}
+	
+	// Обработка принудительно закрытых начислений
+	for (let i = 0; i < forcedRecords.length; i++) {
+		const record = forcedRecords[i];
+		
+		const totalAccrued = parseNumeric(record.get('total_accrued'));
+		const totalPaid = parseNumeric(record.get('total_paid'));
+		const balance = parseNumeric(record.get('balance'));
+		
+		forcedClosedAccruals.push({
+			id: record.getString('id'),
+			number: record.getString('number'),
+			name: record.getString('accrual_name'),
+			partnerName: record.getString('partner_name'),
+			costItemName: record.getString('cost_item_name'),
+			totalAccrued,
+			totalPaid,
+			balance,
+			repaymentDate: record.getString('repayment_date'),
+			created: record.getString('created')
+		});
+	}
+	
+	// Обработка полностью оплаченных начислений
+	for (let i = 0; i < paidRecords.length; i++) {
+		const record = paidRecords[i];
+		
+		const totalAccrued = parseNumeric(record.get('total_accrued'));
+		const totalPaid = parseNumeric(record.get('total_paid'));
+		
+		fullyPaidAccruals.push({
+			id: record.getString('id'),
+			number: record.getString('number'),
+			name: record.getString('accrual_name'),
+			partnerName: record.getString('partner_name'),
+			costItemName: record.getString('cost_item_name'),
+			totalAccrued,
+			totalPaid,
+			repaymentDate: record.getString('repayment_date'),
+			created: record.getString('created')
+		});
+	}
+	
+	// Преобразуем partnerBalances в отсортированный массив
+	var partnerBalancesArray = [];
+	for (var partnerName in partnerBalances) {
+		if (partnerBalances.hasOwnProperty(partnerName)) {
+			partnerBalancesArray.push({
+				name: partnerName,
+				balance: partnerBalances[partnerName]
+			});
+		}
+	}
+	// Сортируем по убыванию остатка
+	partnerBalancesArray.sort(function(a, b) {
+		return b.balance - a.balance;
+	});
+	
+	// Преобразуем costItemBalances в отсортированный массив
+	var costItemBalancesArray = [];
+	for (var costItemName in costItemBalances) {
+		if (costItemBalances.hasOwnProperty(costItemName)) {
+			costItemBalancesArray.push({
+				name: costItemName,
+				balance: costItemBalances[costItemName]
+			});
+		}
+	}
+	// Сортируем по убыванию остатка
+	costItemBalancesArray.sort(function(a, b) {
+		return b.balance - a.balance;
+	});
+	
+	// Обработка планируемых поступлений
+	var totalPlannedIncome = 0;
+	for (var i = 0; i < incomeRecords.length; i++) {
+		var record = incomeRecords[i];
+		
+		var incomeSum = parseNumeric(record.get('sum'));
+		var incomeDateStr = record.getString('income_date');
+		
+		totalPlannedIncome += incomeSum;
+		
+		plannedIncome.push({
+			id: record.getString('id'),
+			name: record.getString('name'),
+			sum: incomeSum,
+			incomeDate: incomeDateStr,
+			created: record.getString('created'),
+			updated: record.getString('updated')
+		});
+	}
+	
+	// Загружаем ожидаемые поступления с балансом
+	const waitIncomesRecords = $app.findRecordsByFilter('wait_incomes_with_status', '', '-accrual_month', 0, 0);
+	
+	var totalWaitIncomesBalance = 0;
+	for (var i = 0; i < waitIncomesRecords.length; i++) {
+		var record = waitIncomesRecords[i];
+		
+		var sum = parseNumeric(record.get('sum'));
+		var totalReceived = parseNumeric(record.get('total_received'));
+		var balance = parseNumeric(record.get('balance'));
+		
+		// Пропускаем записи с нулевым балансом
+		if (balance === 0) {
+			continue;
+		}
+		
+		// Получаем оригинальную сумму из таблицы wait_incomes
+		var originalSum = sum;
+		try {
+			const originalRecord = $app.dao().findRecordById('wait_incomes', record.getString('id'));
+			originalSum = parseNumeric(originalRecord.get('sum'));
+		} catch (e) {
+			// Если не удалось получить оригинальную запись, используем расчетную сумму / 0.9
+			originalSum = Math.round(sum / 0.9);
+		}
+		
+		totalWaitIncomesBalance += balance;
+		
+		waitIncomes.push({
+			id: record.getString('id'),
+			name: record.getString('name'),
+			sum: sum,
+			originalSum: originalSum, // Добавляем оригинальную сумму
+			totalReceived: totalReceived,
+			balance: balance,
+			paymentsCount: parseNumeric(record.get('payments_count')),
+			accrualMonth: record.getString('accrual_month'),
+			daysDifference: record.get('days_difference'),
+			created: record.getString('created'),
+			updated: record.getString('updated')
+		});
+	}
+	
+} catch (error) {
+	loadError = error;
+	if (typeof log !== 'undefined' && log && typeof log.error === 'function') {
+		log.error('[dashboard::accruals_all_with_status] failed to load view', error);
+	}
+}
+
+// Загрузка данных банка
+try {
+	bankConfig = $app.findFirstRecordByFilter('tochka_config', 'is_active = true');
+	if (bankConfig) {
+		bankBalance = bankConfig.get('endDateBalance');
+		const lastSync = bankConfig.get('last_sync_date');
+		if (lastSync) {
+			lastSyncDate = new Date(lastSync);
+		}
+	}
+} catch (error) {
+	// Конфигурация банка не найдена или не активна
+}
+%>
+
+<section class="space-y-6">
+	<header class="space-y-1">
+		<h1 class="text-2xl font-semibold">Все начисления</h1>
+		<p class="text-sm text-base-content/70">Источник: представление <code>accruals_all_with_status</code></p>
+	</header>
+
+	<% if (loadError) { %>
+		<div class="alert alert-error">
+			<span>Не удалось загрузить данные: <%= loadError?.message || loadError %></span>
+		</div>
+	<% } else { %>
+		<!-- Раздел работы с банком -->
+		<div class="space-y-4">
+			<div class="divider">
+				<h2 class="text-xl font-semibold">
+					<i class="fas fa-university"></i>
+					Банк Точка
+				</h2>
+			</div>
+			
+			<% if (bankConfig) { %>
+				<div class="grid gap-4 md:grid-cols-2">
+					<!-- Виджет с балансом -->
+					<div class="rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 p-6 border border-primary/30">
+						<div class="flex items-start justify-between mb-4">
+							<div>
+								<p class="text-xs uppercase tracking-wide text-base-content/60 mb-1">Текущий баланс</p>
+								<p class="text-3xl font-bold text-primary">
+									<%= bankBalance !== null && bankBalance !== undefined ? formatCurrency(bankBalance) : '—' %>
+								</p>
+							</div>
+							<div class="badge badge-success badge-sm">
+								<i class="fas fa-check-circle mr-1"></i>
+								Активен
+							</div>
+						</div>
+						<div class="text-sm text-base-content/70">
+							<% if (lastSyncDate) { %>
+								<p>
+									<i class="fas fa-sync-alt mr-1"></i>
+									Последнее обновление: <span class="font-medium"><%= formatDate(lastSyncDate) %></span>
+								</p>
+							<% } else { %>
+								<p class="text-warning">
+									<i class="fas fa-exclamation-triangle mr-1"></i>
+									Данные ещё не загружены
+								</p>
+							<% } %>
+						</div>
+					</div>
+					
+					<!-- Карточка с кнопкой загрузки -->
+					<div class="rounded-lg bg-base-200 p-6">
+						<p class="text-xs uppercase tracking-wide text-base-content/60 mb-4">Синхронизация</p>
+						<div class="space-y-3">
+							<button 
+								onclick="loadBankStatements()" 
+								class="btn btn-primary w-full"
+								id="btnLoadBank">
+								<i class="fas fa-download"></i>
+								Загрузить выписку
+							</button>
+							<button 
+								onclick="openPaymentsModal()" 
+								class="btn btn-secondary w-full"
+								id="btnAllocatePayments">
+								<i class="fas fa-link"></i>
+								Разнести платежи
+							</button>
+							<p class="text-xs text-base-content/60 text-center">
+								<% if (lastSyncDate) { %>
+									Будет загружена выписка с <%= formatDate(lastSyncDate) %> по текущую дату
+								<% } else { %>
+									Выберите период для загрузки выписки
+								<% } %>
+							</p>
+						</div>
+						<div id="bankLoadResult" class="mt-4" style="display: none;"></div>
+					</div>
+				</div>
+			<% } else { %>
+				<div class="alert alert-warning">
+					<i class="fas fa-exclamation-triangle"></i>
+					<span>Конфигурация банка не настроена. Добавьте активную запись в таблицу <code>tochka_config</code>.</span>
+				</div>
+			<% } %>
+		</div>
+
+		<!-- Раздел Поступления -->
+		<div class="space-y-4">
+			<div class="divider">
+				<h2 class="text-xl font-semibold">
+					<i class="fas fa-arrow-down text-success"></i>
+					Поступления
+				</h2>
+			</div>
+			
+			<div class="grid gap-4 md:grid-cols-2">
+				<!-- Абонентская плата -->
+				<div class="rounded-lg bg-base-200 p-4 flex flex-col">
+					<p class="text-xs uppercase tracking-wide text-base-content/60 mb-2">Абонентская плата</p>
+					<div class="space-y-1 flex-1 overflow-y-auto text-sm">
+						<% if (plannedIncome.length === 0) { %>
+							<p class="text-base-content/60 text-xs">Нет данных</p>
+						<% } else { %>
+							<% for (var i = 0; i < plannedIncome.length; i++) { %>
+								<div class="flex justify-between items-center">
+									<span class="text-base-content/80 truncate mr-2"><%= plannedIncome[i].name %></span>
+									<span class="font-semibold text-success whitespace-nowrap"><%= formatCurrency(plannedIncome[i].sum) %></span>
+								</div>
+							<% } %>
+							<div class="border-t border-base-300 pt-2 mt-2 flex justify-between items-center">
+								<span class="text-base-content font-semibold">ИТОГО</span>
+								<span class="font-bold text-success whitespace-nowrap"><%= formatCurrency(totalPlannedIncome) %></span>
+							</div>
+							<div class="mt-3">
+								<button 
+									onclick="generateWaitIncomes()" 
+									class="btn btn-xs btn-success w-full"
+									id="btnGenerateWaitIncomes">
+									<i class="fas fa-magic"></i>
+									Создать ожидаемые поступления
+								</button>
+							</div>
+						<% } %>
+					</div>
+				</div>
+				
+				<!-- Ожидаемые платежи -->
+				<div class="rounded-lg bg-base-200 p-4 flex flex-col">
+					<p class="text-xs uppercase tracking-wide text-base-content/60 mb-2">Ожидаемые платежи</p>
+					<div class="space-y-1 flex-1 overflow-y-auto text-sm">
+						<% if (waitIncomes.length === 0) { %>
+							<p class="text-base-content/60 text-xs">Нет данных</p>
+						<% } else { %>
+							<% for (var i = 0; i < waitIncomes.length; i++) { %>
+								<div class="flex justify-between items-center hover:bg-base-300 cursor-pointer p-2 rounded transition-colors wait-income-item" 
+									 data-id="<%= waitIncomes[i].id %>" 
+									 data-name="<%= waitIncomes[i].name %>" 
+									 data-sum="<%= waitIncomes[i].originalSum %>" 
+									 data-accrual-month="<%= waitIncomes[i].accrualMonth %>"
+									 onclick="openEditWaitIncomeModal(this)">
+									<span class="text-base-content/80 truncate mr-2">
+										<%= waitIncomes[i].name %>
+										<% if (waitIncomes[i].accrualMonth) { %>
+											<span class="text-base-content/50">
+												(<%= getMonthName(waitIncomes[i].accrualMonth) %>)
+											</span>
+										<% } %>
+									</span>
+									<span class="font-semibold <%= waitIncomes[i].balance > 0 ? 'text-info' : 'text-success' %> whitespace-nowrap">
+										<%= formatCurrency(waitIncomes[i].balance) %>
+									</span>
+								</div>
+							<% } %>
+							<div class="border-t border-base-300 pt-2 mt-2 flex justify-between items-center">
+								<span class="text-base-content font-semibold">ИТОГО</span>
+								<span class="font-bold text-info whitespace-nowrap"><%= formatCurrency(totalWaitIncomesBalance) %></span>
+							</div>
+							<div class="mt-3">
+								<button 
+									onclick="openAddWaitIncomeModal()" 
+									class="btn btn-xs btn-info w-full"
+									id="btnAddWaitIncome">
+									<i class="fas fa-plus"></i>
+									Добавить платеж
+								</button>
+							</div>
+						<% } %>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+			<div class="rounded-lg bg-base-200 p-4 flex flex-col">
+				<p class="text-xs uppercase tracking-wide text-base-content/60 mb-3">Статус начислений</p>
+				<div class="space-y-3 flex-1">
+					<div>
+						<p class="text-xs text-base-content/60">Всего начислений</p>
+						<p class="text-xl font-semibold"><%= formatCurrency(summary.totalSum) %></p>
+						<p class="text-xs text-base-content/50"><%= summary.total %> шт.</p>
+					</div>
+					<div>
+						<p class="text-xs text-base-content/60">Просрочено</p>
+						<p class="text-xl font-semibold text-error"><%= formatCurrency(summary.overdueSum) %></p>
+						<p class="text-xs text-base-content/50"><%= summary.overdue %> шт.</p>
+					</div>
+					<div>
+						<p class="text-xs text-base-content/60">Оплата сегодня</p>
+						<p class="text-xl font-semibold text-warning"><%= formatCurrency(summary.dueTodaySum) %></p>
+						<p class="text-xs text-base-content/50"><%= summary.dueToday %> шт.</p>
+					</div>
+				</div>
+			</div>
+			<div class="rounded-lg bg-base-200 p-4 flex flex-col">
+				<p class="text-xs uppercase tracking-wide text-base-content/60 mb-2">Остаток по партнёрам</p>
+				<div class="space-y-1 flex-1 overflow-y-auto text-sm">
+					<% if (partnerBalancesArray.length === 0) { %>
+						<p class="text-base-content/60 text-xs">Нет данных</p>
+					<% } else { %>
+						<% for (var i = 0; i < partnerBalancesArray.length; i++) { %>
+							<div class="flex justify-between items-center">
+								<span class="text-base-content/80 truncate mr-2"><%= partnerBalancesArray[i].name %></span>
+								<span class="font-semibold text-info whitespace-nowrap"><%= formatCurrency(partnerBalancesArray[i].balance) %></span>
+							</div>
+						<% } %>
+					<% } %>
+				</div>
+			</div>
+			<div class="rounded-lg bg-base-200 p-4 flex flex-col">
+				<p class="text-xs uppercase tracking-wide text-base-content/60 mb-2">Остаток по статьям</p>
+				<div class="space-y-1 flex-1 overflow-y-auto text-sm">
+					<% if (costItemBalancesArray.length === 0) { %>
+						<p class="text-base-content/60 text-xs">Нет данных</p>
+					<% } else { %>
+						<% for (var i = 0; i < costItemBalancesArray.length; i++) { %>
+							<div class="flex justify-between items-center">
+								<span class="text-base-content/80 truncate mr-2"><%= costItemBalancesArray[i].name %></span>
+								<span class="font-semibold text-info whitespace-nowrap"><%= formatCurrency(costItemBalancesArray[i].balance) %></span>
+							</div>
+						<% } %>
+					<% } %>
+				</div>
+			</div>
+		</div>
+
+	<!-- Фильтры и toggle кнопки -->
+	<div class="flex gap-3 flex-wrap items-end">
+		<!-- Фильтр по статьям -->
+		<div class="form-control">
+			<label class="label pb-1">
+				<span class="label-text text-xs">Фильтр по статье затрат:</span>
+			</label>
+			<select 
+				class="select select-bordered select-sm w-full max-w-xs"
+				id="costItemFilter"
+				onchange="filterByCostItem()">
+				<option value="">Все статьи (<%= accruals.length %>)</option>
+				<% for (var i = 0; i < costItemBalancesArray.length; i++) { %>
+					<option value="<%= costItemBalancesArray[i].name %>">
+						<%= costItemBalancesArray[i].name %> 
+						(<%= accruals.filter(function(a) { return a.costItemName === costItemBalancesArray[i].name; }).length %>)
+					</option>
+				<% } %>
+			</select>
+		</div>
+		
+		<!-- Отбор по платежам -->
+		<div class="form-control">
+			<label class="label pb-1">
+				<span class="label-text text-xs">Отбор по платежам:</span>
+			</label>
+			<div class="flex gap-2">
+				<button 
+					onclick="toggleForcedClosed()" 
+					class="btn btn-sm btn-outline btn-primary"
+					id="btnToggleForcedClosed">
+					<i class="fas fa-ban"></i>
+					Принудительно закрытые (<%= forcedClosedAccruals.length %>)
+				</button>
+				<button 
+					onclick="toggleFullyPaid()" 
+					class="btn btn-sm btn-outline btn-success"
+					id="btnToggleFullyPaid">
+					<i class="fas fa-check-circle"></i>
+					Полностью оплаченные (<%= fullyPaidAccruals.length %>)
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<% if (!accruals.length) { %>
+		<div class="alert">
+			<span>Начислений пока нет.</span>
+		</div>
+	<% } else { %>
+		<div class="overflow-x-auto rounded-xl border border-base-200">
+				<table class="table table-zebra table-sm">
+					<thead>
+						<tr>
+							<th class="whitespace-nowrap">Начисление</th>
+							<th>Партнёр / Статья</th>
+							<th class="text-right">Начислено</th>
+							<th class="text-right">Оплачено</th>
+							<th class="text-right">Баланс</th>
+							<th class="whitespace-nowrap">Срок оплаты</th>
+							<th>Статус</th>
+							<th class="text-center">Платежи</th>
+							<th>Описание</th>
+						</tr>
+					</thead>
+					<tbody>
+						<% accruals.forEach((item) => { %>
+							<tr class="align-top <%= getRowClass(item.status) %> accrual-row" data-cost-item="<%= item.costItemName || '' %>">
+								<td class="whitespace-nowrap">
+									<div class="font-semibold"><%= item.name || 'Без названия' %></div>
+									<div class="text-xs text-base-content/60"><%= item.number || 'Без номера' %></div>
+								</td>
+								<td>
+									<% if (item.costItemName) { %>
+										<div class="font-medium"><%= item.costItemName %></div>
+									<% } else { %>
+										<div class="text-base-content/60">—</div>
+									<% } %>
+									<% if (item.partnerName) { %>
+										<div class="text-xs text-base-content/60"><%= item.partnerName %></div>
+									<% } %>
+								</td>
+								<td class="text-right">
+									<div class="font-medium"><%= formatCurrency(item.totalAccrued) %></div>
+									<div class="text-xs text-base-content/60">Начислено</div>
+								</td>
+								<td class="text-right">
+									<div class="font-medium"><%= formatCurrency(item.totalPaid) %></div>
+									<div class="text-xs text-base-content/60">Оплачено</div>
+								</td>
+								<td class="text-right">
+									<div class="font-semibold <%= item.balance > 0 ? 'text-error' : 'text-success' %>"><%= formatCurrency(item.balance) %></div>
+									<div class="text-xs text-base-content/60">К оплате</div>
+								</td>
+								<td class="whitespace-nowrap">
+									<div class="font-medium"><%= formatDate(item.repaymentDate) %></div>
+									<% if (typeof item.daysDifference === 'number') { %>
+										<% if (item.daysDifference > 0) { %>
+											<div class="text-xs text-base-content/60">Осталось <%= item.daysDifference %> дн.</div>
+										<% } else if (item.daysDifference < 0) { %>
+											<div class="text-xs text-error">Просрочка <%= Math.abs(item.daysDifference) %> дн.</div>
+										<% } else { %>
+											<div class="text-xs text-warning">Сегодня</div>
+										<% } %>
+									<% } %>
+								</td>
+								<td>
+									<span class="badge <%= item.statusBadgeClass %> whitespace-nowrap"><%= item.statusLabel %></span>
+								</td>
+								<td class="text-center">
+									<div class="font-medium"><%= item.paymentsCount %></div>
+									<div class="text-xs text-base-content/60">платеж(ей)</div>
+								</td>
+								<td class="max-w-xs">
+									<% if (item.description) { %>
+										<p class="text-sm text-base-content/80"><%= item.description %></p>
+									<% } else { %>
+										<span class="text-base-content/40">—</span>
+									<% } %>
+								</td>
+							</tr>
+						<% }) %>
+					</tbody>
+				</table>
+			</div>
+		<% } %>
+		
+		<!-- Принудительно закрытые начисления -->
+		<div id="forcedClosedBlock" style="display: none;" class="space-y-4">
+			<div class="divider">
+				<h3 class="text-lg font-semibold">
+					<i class="fas fa-ban text-primary"></i>
+					Принудительно закрытые начисления (<%= forcedClosedAccruals.length %>)
+				</h3>
+			</div>
+			<% if (forcedClosedAccruals.length > 0) { %>
+				<div class="overflow-x-auto rounded-xl border border-base-200">
+					<table class="table table-zebra table-sm">
+						<thead>
+							<tr>
+								<th>Начисление</th>
+								<th>Партнёр / Статья</th>
+								<th class="text-right">Начислено</th>
+								<th class="text-right">Оплачено</th>
+								<th class="text-right">Баланс</th>
+								<th>Срок оплаты</th>
+								<th>Создано</th>
+							</tr>
+						</thead>
+						<tbody>
+							<% forcedClosedAccruals.forEach((item) => { %>
+								<tr class="align-top bg-primary/10">
+									<td class="whitespace-nowrap">
+										<div class="font-semibold"><%= item.name || 'Без названия' %></div>
+										<div class="text-xs text-base-content/60"><%= item.number || 'Без номера' %></div>
+									</td>
+									<td>
+										<% if (item.costItemName) { %>
+											<div class="font-medium"><%= item.costItemName %></div>
+										<% } %>
+										<% if (item.partnerName) { %>
+											<div class="text-xs text-base-content/60"><%= item.partnerName %></div>
+										<% } %>
+									</td>
+									<td class="text-right">
+										<div class="font-semibold"><%= formatCurrency(item.totalAccrued) %></div>
+									</td>
+									<td class="text-right">
+										<div class="font-semibold text-success"><%= formatCurrency(item.totalPaid) %></div>
+									</td>
+									<td class="text-right">
+										<div class="font-semibold <%= item.balance > 0 ? 'text-error' : 'text-success' %>">
+											<%= formatCurrency(item.balance) %>
+										</div>
+									</td>
+									<td class="whitespace-nowrap">
+										<%= formatDate(item.repaymentDate) %>
+									</td>
+									<td class="whitespace-nowrap text-xs text-base-content/60">
+										<%= formatDate(item.created) %>
+									</td>
+								</tr>
+							<% }) %>
+						</tbody>
+					</table>
+				</div>
+			<% } else { %>
+				<div class="alert">
+					<span>Нет принудительно закрытых начислений</span>
+				</div>
+			<% } %>
+		</div>
+		
+		<!-- Полностью оплаченные начисления -->
+		<div id="fullyPaidBlock" style="display: none;" class="space-y-4">
+			<div class="divider">
+				<h3 class="text-lg font-semibold">
+					<i class="fas fa-check-circle text-success"></i>
+					Полностью оплаченные начисления (<%= fullyPaidAccruals.length %>)
+				</h3>
+			</div>
+			<% if (fullyPaidAccruals.length > 0) { %>
+				<div class="overflow-x-auto rounded-xl border border-base-200">
+					<table class="table table-zebra table-sm">
+						<thead>
+							<tr>
+								<th>Начисление</th>
+								<th>Партнёр / Статья</th>
+								<th class="text-right">Начислено</th>
+								<th class="text-right">Оплачено</th>
+								<th>Срок оплаты</th>
+								<th>Создано</th>
+							</tr>
+						</thead>
+						<tbody>
+							<% fullyPaidAccruals.forEach((item) => { %>
+								<tr class="align-top bg-success/10">
+									<td class="whitespace-nowrap">
+										<div class="font-semibold"><%= item.name || 'Без названия' %></div>
+										<div class="text-xs text-base-content/60"><%= item.number || 'Без номера' %></div>
+									</td>
+									<td>
+										<% if (item.costItemName) { %>
+											<div class="font-medium"><%= item.costItemName %></div>
+										<% } %>
+										<% if (item.partnerName) { %>
+											<div class="text-xs text-base-content/60"><%= item.partnerName %></div>
+										<% } %>
+									</td>
+									<td class="text-right">
+										<div class="font-semibold"><%= formatCurrency(item.totalAccrued) %></div>
+									</td>
+									<td class="text-right">
+										<div class="font-semibold text-success"><%= formatCurrency(item.totalPaid) %></div>
+									</td>
+									<td class="whitespace-nowrap">
+										<%= formatDate(item.repaymentDate) %>
+									</td>
+									<td class="whitespace-nowrap text-xs text-base-content/60">
+										<%= formatDate(item.created) %>
+									</td>
+								</tr>
+							<% }) %>
+						</tbody>
+					</table>
+				</div>
+			<% } else { %>
+				<div class="alert">
+					<span>Нет полностью оплаченных начислений</span>
+				</div>
+			<% } %>
+		</div>
+	<% } %>
+</section>
+
+<!-- Модальное окно для разнесения платежей -->
+<dialog id="paymentsModal" class="modal">
+	<div class="modal-box max-w-full w-full h-screen m-0 rounded-none p-0 flex flex-col">
+		<!-- Закрепленная шапка с кнопками -->
+		<div class="sticky top-0 z-10 bg-base-100 border-b border-base-300 px-6 py-4 flex items-center justify-between">
+			<div class="flex items-center gap-2">
+				<i class="fas fa-link text-primary"></i>
+				<h3 class="font-bold text-lg">Разнесение платежей по начислениям</h3>
+			</div>
+			<div class="flex items-center gap-2">
+				<button onclick="savePaymentAllocations()" class="btn btn-primary btn-sm" id="btnSaveAllocations">
+					<i class="fas fa-save"></i>
+					Сохранить изменения
+				</button>
+				<form method="dialog" class="inline">
+					<button class="btn btn-ghost btn-sm">
+						<i class="fas fa-times"></i>
+						Закрыть
+					</button>
+				</form>
+			</div>
+		</div>
+		
+		<!-- Контент с прокруткой -->
+		<div id="paymentsModalContent" class="flex-1 overflow-y-auto px-6 py-4">
+			<div class="flex items-center justify-center py-8">
+				<span class="loading loading-spinner loading-lg"></span>
+			</div>
+		</div>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
+
+<!-- Модальное окно для выбора начисления или ожидаемого поступления -->
+<dialog id="selectorModal" class="modal">
+	<div class="modal-box max-w-3xl">
+		<form method="dialog">
+			<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+		</form>
+		<h3 class="font-bold text-lg mb-4" id="selectorModalTitle">
+			<i class="fas fa-search"></i>
+			Выбор
+		</h3>
+		
+		<!-- Поле поиска -->
+		<div class="form-control mb-4">
+			<input 
+				type="text" 
+				id="selectorSearchInput" 
+				placeholder="Поиск..." 
+				class="input input-bordered w-full"
+				oninput="filterSelectorItems()" />
+		</div>
+		
+		<!-- Список -->
+		<div class="overflow-y-auto max-h-96 border border-base-300 rounded-lg">
+			<table class="table table-zebra table-sm table-pin-rows">
+				<thead id="selectorTableHead">
+					<!-- Заголовки будут заполнены через JS -->
+				</thead>
+				<tbody id="selectorList">
+					<!-- Список будет заполнен через JS -->
+				</tbody>
+			</table>
+		</div>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
+
+<!-- Модальное окно подтверждения генерации -->
+<dialog id="confirmGenerateModal" class="modal">
+	<div class="modal-box">
+		<h3 class="font-bold text-lg mb-4">
+			<i class="fas fa-magic text-success"></i>
+			Создание ожидаемых поступлений
+		</h3>
+		<p class="py-4">
+			Создать ожидаемые поступления на <strong>текущий месяц</strong> на основе планируемых доходов?
+		</p>
+		<div class="modal-action">
+			<form method="dialog" class="flex gap-2">
+				<button class="btn btn-ghost">Отмена</button>
+				<button class="btn btn-success" onclick="confirmGenerateWaitIncomes()">
+					<i class="fas fa-check"></i>
+					Создать
+				</button>
+			</form>
+		</div>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
+
+<!-- Модальное окно результата генерации -->
+<dialog id="resultGenerateModal" class="modal">
+	<div class="modal-box">
+		<h3 class="font-bold text-lg mb-4" id="resultGenerateTitle">
+			<i class="fas fa-check-circle text-success"></i>
+			Результат
+		</h3>
+		<div id="resultGenerateContent" class="py-4">
+			<!-- Контент будет заполнен через JS -->
+		</div>
+		<div class="modal-action">
+			<form method="dialog">
+				<button class="btn btn-primary" onclick="window.location.reload()">
+					<i class="fas fa-sync-alt"></i>
+					Обновить страницу
+				</button>
+			</form>
+		</div>
+	</div>
+</dialog>
+
+<!-- Модальное окно добавления ожидаемого платежа -->
+<dialog id="addWaitIncomeModal" class="modal">
+	<div class="modal-box">
+		<form method="dialog">
+			<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+		</form>
+		<h3 class="font-bold text-lg mb-4">
+			<i class="fas fa-plus text-info"></i>
+			Добавить ожидаемый платеж
+		</h3>
+		
+		<form id="addWaitIncomeForm" class="space-y-4">
+			<!-- Название -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Название платежа <span class="text-error">*</span></span>
+				</label>
+				<input 
+					type="text" 
+					id="waitIncomeName" 
+					name="name"
+					placeholder="Например: ООО Рога и копыта"
+					class="input input-bordered w-full" 
+					required />
+			</div>
+			
+			<!-- Сумма -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Сумма <span class="text-error">*</span></span>
+				</label>
+				<div class="input-group">
+					<input 
+						type="number" 
+						id="waitIncomeSum" 
+						name="sum"
+						placeholder="100000"
+						step="0.01"
+						min="0"
+						class="input input-bordered w-full" 
+						required />
+					<span class="input-group-text">₽</span>
+				</div>
+				<label class="label">
+					<span class="label-text-alt">Введите сумму без учета налогов (13% будет вычтено автоматически)</span>
+				</label>
+			</div>
+			
+			<!-- Месяц начисления -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Месяц начисления <span class="text-error">*</span></span>
+				</label>
+				<input 
+					type="month" 
+					id="waitIncomeMonth" 
+					name="accrual_month"
+					class="input input-bordered w-full" 
+					required />
+			</div>
+			
+			<!-- Кнопки -->
+			<div class="modal-action">
+				<button type="button" onclick="document.getElementById('addWaitIncomeModal').close()" class="btn btn-ghost">
+					Отмена
+				</button>
+				<button type="submit" class="btn btn-info" id="btnSubmitWaitIncome">
+					<i class="fas fa-save"></i>
+					Сохранить
+				</button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
+
+<!-- Модальное окно редактирования ожидаемого платежа -->
+<dialog id="editWaitIncomeModal" class="modal">
+	<div class="modal-box">
+		<form method="dialog">
+			<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+		</form>
+		<h3 class="font-bold text-lg mb-4">
+			<i class="fas fa-edit text-warning"></i>
+			Редактировать ожидаемый платеж
+		</h3>
+		
+		<form id="editWaitIncomeForm" class="space-y-4">
+			<input type="hidden" id="editWaitIncomeId" name="id" />
+			
+			<!-- Название -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Название платежа <span class="text-error">*</span></span>
+				</label>
+				<input 
+					type="text" 
+					id="editWaitIncomeName" 
+					name="name"
+					placeholder="Например: ООО Рога и копыта"
+					class="input input-bordered w-full" 
+					required />
+			</div>
+			
+			<!-- Сумма -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Сумма <span class="text-error">*</span></span>
+				</label>
+				<div class="input-group">
+					<input 
+						type="number" 
+						id="editWaitIncomeSum" 
+						name="sum"
+						placeholder="100000"
+						step="0.01"
+						min="0"
+						class="input input-bordered w-full" 
+						required />
+					<span class="input-group-text">₽</span>
+				</div>
+				<label class="label">
+					<span class="label-text-alt">Введите сумму без учета налогов (13% будет вычтено автоматически)</span>
+				</label>
+			</div>
+			
+			<!-- Месяц начисления -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Месяц начисления <span class="text-error">*</span></span>
+				</label>
+				<input 
+					type="month" 
+					id="editWaitIncomeMonth" 
+					name="accrual_month"
+					class="input input-bordered w-full" 
+					required />
+			</div>
+			
+			<!-- Кнопки -->
+			<div class="modal-action">
+				<button type="button" onclick="deleteWaitIncome()" class="btn btn-error btn-outline" id="btnDeleteWaitIncome">
+					<i class="fas fa-trash"></i>
+					Удалить
+				</button>
+				<button type="button" onclick="document.getElementById('editWaitIncomeModal').close()" class="btn btn-ghost">
+					Отмена
+				</button>
+				<button type="submit" class="btn btn-warning" id="btnEditWaitIncome">
+					<i class="fas fa-save"></i>
+					Сохранить изменения
+				</button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>close</button>
+	</form>
+</dialog>
+
+<script>
+// Глобальные переменные для селектора начислений
+let currentPaymentId = null;
+let currentPaymentType = null; // 'income' или 'expense'
+window.availableAccruals = [];
+window.availableWaitIncomes = [];
+function filterByCostItem() {
+	const filterValue = document.getElementById('costItemFilter').value;
+	const rows = document.querySelectorAll('.accrual-row');
+	
+	let visibleCount = 0;
+	rows.forEach(row => {
+		const costItem = row.getAttribute('data-cost-item');
+		if (filterValue === '' || costItem === filterValue) {
+			row.style.display = '';
+			visibleCount++;
+		} else {
+			row.style.display = 'none';
+		}
+	});
+	
+	// Обновляем счетчик в фильтре (опционально)
+	console.log(`Отображается записей: ${visibleCount} из ${rows.length}`);
+}
+
+function toggleForcedClosed() {
+	const block = document.getElementById('forcedClosedBlock');
+	const btn = document.getElementById('btnToggleForcedClosed');
+	if (block.style.display === 'none') {
+		block.style.display = 'block';
+		btn.innerHTML = '<i class="fas fa-ban"></i> Скрыть';
+		btn.classList.remove('btn-outline');
+	} else {
+		block.style.display = 'none';
+		btn.innerHTML = '<i class="fas fa-ban"></i> Принудительно закрытые (<%= forcedClosedAccruals.length %>)';
+		btn.classList.add('btn-outline');
+	}
+}
+
+function toggleFullyPaid() {
+	const block = document.getElementById('fullyPaidBlock');
+	const btn = document.getElementById('btnToggleFullyPaid');
+	if (block.style.display === 'none') {
+		block.style.display = 'block';
+		btn.innerHTML = '<i class="fas fa-check-circle"></i> Скрыть';
+		btn.classList.remove('btn-outline');
+	} else {
+		block.style.display = 'none';
+		btn.innerHTML = '<i class="fas fa-check-circle"></i> Полностью оплаченные (<%= fullyPaidAccruals.length %>)';
+		btn.classList.add('btn-outline');
+	}
+}
+
+async function loadBankStatements() {
+	const btn = document.getElementById('btnLoadBank');
+	const resultDiv = document.getElementById('bankLoadResult');
+	
+	// Отключаем кнопку
+	btn.disabled = true;
+	btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Загрузка...';
+	
+	resultDiv.style.display = 'none';
+	resultDiv.innerHTML = '';
+	
+	try {
+		// Инициируем выписку (даты определяются автоматически на бэкенде)
+		const initResponse = await fetch('/xapi/tochka/init-statement', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({})
+		});
+		
+	const initData = initResponse;
+		
+		if (!initData.success) {
+			throw new Error(initData.message || 'Ошибка инициализации выписки');
+		}
+		
+		const statementId = initData.data.statementId;
+		
+		// Ждём 3 секунды для обработки
+		await new Promise(resolve => setTimeout(resolve, 3000));
+		
+		// Получаем выписку
+		const statementResponse = await fetch(`/xapi/tochka/statement?statementId=${statementId}`);
+	const statementData = statementResponse;
+		
+		if (!statementData.success) {
+			throw new Error(statementData.message || 'Ошибка получения выписки');
+		}
+		
+		// Показываем результат
+		resultDiv.style.display = 'block';
+		
+		if (statementData.status === 'Ready' && statementData.saveResult) {
+			const { saved, skipped, errors } = statementData.saveResult;
+			resultDiv.innerHTML = `
+				<div class="alert alert-success">
+					<i class="fas fa-check-circle"></i>
+					<div>
+						<p class="font-semibold">Выписка загружена успешно!</p>
+						<p class="text-sm">Сохранено: ${saved}, Пропущено: ${skipped}, Ошибок: ${errors.length}</p>
+					</div>
+				</div>
+			`;
+			
+			// Перезагружаем страницу через 2 секунды для обновления баланса
+			setTimeout(() => window.location.reload(), 2000);
+		} else {
+			resultDiv.innerHTML = `
+				<div class="alert alert-warning">
+					<i class="fas fa-clock"></i>
+					<span>Выписка в обработке. Статус: ${statementData.status}</span>
+				</div>
+			`;
+		}
+		
+	} catch (error) {
+		resultDiv.style.display = 'block';
+		resultDiv.innerHTML = `
+			<div class="alert alert-error">
+				<i class="fas fa-exclamation-circle"></i>
+				<span>${error.message}</span>
+			</div>
+		`;
+	} finally {
+		// Возвращаем кнопку в исходное состояние
+		btn.disabled = false;
+		btn.innerHTML = '<i class="fas fa-download"></i> Загрузить выписку';
+	}
+}
+
+async function generateWaitIncomes() {
+	// Показываем модальное окно подтверждения
+	document.getElementById('confirmGenerateModal').showModal();
+}
+
+async function confirmGenerateWaitIncomes() {
+	const btn = document.getElementById('btnGenerateWaitIncomes');
+	
+	// Закрываем модальное окно подтверждения
+	document.getElementById('confirmGenerateModal').close();
+	
+	// Отключаем кнопку
+	btn.disabled = true;
+	btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Создание...';
+	
+	try {
+		const response = await fetch('/xapi/wait-incomes/generate-from-planned', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({})
+		});
+		
+	const data = response;
+		
+		if (!data.success) {
+			throw new Error(data.message || 'Ошибка генерации');
+		}
+		
+		// Показываем результат в модальном окне
+		const title = document.getElementById('resultGenerateTitle');
+		const content = document.getElementById('resultGenerateContent');
+		
+		// Форматируем месяц для отображения
+		const monthDate = new Date(data.month);
+		const monthName = monthDate.toLocaleDateString('ru-RU', { year: 'numeric', month: 'long' });
+		
+		// Проверяем наличие отладочной информации
+		const debugInfo = data.debug || {};
+		const hasErrors = data.errors && data.errors.length > 0;
+		
+		let errorsHtml = '';
+		if (hasErrors) {
+			errorsHtml = `
+				<div class="alert alert-warning">
+					<i class="fas fa-exclamation-triangle"></i>
+					<div>
+						<p class="font-semibold">Обнаружены ошибки при обработке:</p>
+						<ul class="text-sm mt-2 list-disc list-inside">
+							${data.errors.map(err => `<li>${err.name}: ${err.error}</li>`).join('')}
+						</ul>
+					</div>
+				</div>
+			`;
+		}
+		
+		let debugHtml = '';
+		if (debugInfo.plannedIncomesCount !== undefined) {
+			debugHtml = `
+				<div class="alert alert-info">
+					<i class="fas fa-info-circle"></i>
+					<div class="text-sm">
+						<p><strong>Отладочная информация:</strong></p>
+						<p>Найдено записей в planned_income: ${debugInfo.plannedIncomesCount}</p>
+						${debugInfo.message ? `<p>${debugInfo.message}</p>` : ''}
+						${debugInfo.totalProcessed !== undefined ? `<p>Всего обработано: ${debugInfo.totalProcessed}</p>` : ''}
+					</div>
+				</div>
+			`;
+		}
+		
+		title.innerHTML = '<i class="fas fa-check-circle text-success"></i> Успешно создано';
+		content.innerHTML = `
+			<div class="space-y-3">
+				<div class="alert alert-success">
+					<i class="fas fa-info-circle"></i>
+					<span>${data.message}</span>
+				</div>
+				${debugHtml}
+				${errorsHtml}
+				<div class="stats stats-vertical lg:stats-horizontal shadow w-full">
+					<div class="stat">
+						<div class="stat-title">Месяц</div>
+						<div class="stat-value text-lg">${monthName}</div>
+					</div>
+					<div class="stat">
+						<div class="stat-title">Создано</div>
+						<div class="stat-value text-success">${data.generated}</div>
+						<div class="stat-desc">новых записей</div>
+					</div>
+					<div class="stat">
+						<div class="stat-title">Пропущено</div>
+						<div class="stat-value text-warning">${data.skipped}</div>
+						<div class="stat-desc">уже существуют</div>
+					</div>
+				</div>
+			</div>
+		`;
+		
+		document.getElementById('resultGenerateModal').showModal();
+		
+	} catch (error) {
+		// Показываем ошибку в модальном окне
+		const title = document.getElementById('resultGenerateTitle');
+		const content = document.getElementById('resultGenerateContent');
+		
+		title.innerHTML = '<i class="fas fa-exclamation-circle text-error"></i> Ошибка';
+		content.innerHTML = `
+			<div class="alert alert-error">
+				<i class="fas fa-times-circle"></i>
+				<span>${error.message}</span>
+			</div>
+		`;
+		
+		document.getElementById('resultGenerateModal').showModal();
+	} finally {
+		// Возвращаем кнопку в исходное состояние
+		btn.disabled = false;
+		btn.innerHTML = '<i class="fas fa-magic"></i> Создать ожидаемые поступления';
+	}
+}
+
+window.openPaymentsModal = async function() {
+	const modal = document.getElementById('paymentsModal');
+	const content = document.getElementById('paymentsModalContent');
+	
+	// Показываем модальное окно
+	modal.showModal();
+	
+	// Загружаем неразнесенные платежи
+	try {
+		const response = await fetch('/xapi/tochka/unallocated-payments');
+	const data = response;
+		
+		if (!data.success) {
+			throw new Error(data.message || 'Ошибка загрузки платежей');
+		}
+		
+		if (data.payments.length === 0) {
+			content.innerHTML = `
+				<div class="alert alert-info">
+					<i class="fas fa-info-circle"></i>
+					<span>Все платежи разнесены. Неразнесенных платежей нет.</span>
+				</div>
+			`;
+			return;
+		}
+		
+		// Подсчитываем количество платежей по типам
+		const incomeCount = data.payments.filter(p => p.creditDebitIndicator === 'Приход денег').length;
+		const expenseCount = data.payments.length - incomeCount;
+		
+		// Формируем таблицу с платежами
+		let html = `
+			<!-- Переключатель типа платежей -->
+			<div class="flex items-center gap-3 mb-4 p-4 bg-base-200 rounded-lg">
+				<span class="text-sm font-medium">Показать:</span>
+				<div class="btn-group">
+					<button 
+						class="btn btn-sm btn-active payment-filter-btn" 
+						data-filter="all"
+						onclick="filterPaymentsByType('all')">
+						<i class="fas fa-list"></i>
+						Все (${data.payments.length})
+					</button>
+					<button 
+						class="btn btn-sm payment-filter-btn" 
+						data-filter="income"
+						onclick="filterPaymentsByType('income')">
+						<i class="fas fa-arrow-down text-success"></i>
+						Приход (${incomeCount})
+					</button>
+					<button 
+						class="btn btn-sm payment-filter-btn" 
+						data-filter="expense"
+						onclick="filterPaymentsByType('expense')">
+						<i class="fas fa-arrow-up text-error"></i>
+						Расход (${expenseCount})
+					</button>
+				</div>
+			</div>
+			
+			<table class="table table-zebra table-sm">
+				<thead>
+					<tr>
+						<th>Дата</th>
+						<th>Тип</th>
+						<th>Плательщик</th>
+						<th class="text-right min-w-32">Сумма</th>
+						<th>Описание</th>
+						<th>Начисление / Ожид. поступление</th>
+						<th class="text-center">Игнор.</th>
+					</tr>
+				</thead>
+				<tbody>
+		`;
+		
+		data.payments.forEach(payment => {
+			const isIncome = payment.creditDebitIndicator === 'Приход денег';
+			
+			html += `
+				<tr class="payment-row" data-payment-id="${payment.id}" data-payment-type="${isIncome ? 'income' : 'expense'}">
+					<td class="whitespace-nowrap text-sm">${formatDateShort(payment.date)}</td>
+					<td class="whitespace-nowrap">
+						<span class="badge badge-sm ${isIncome ? 'badge-success' : 'badge-error'}">
+							${payment.creditDebitIndicator}
+						</span>
+					</td>
+					<td class="text-sm">${payment.payer || '—'}</td>
+					<td class="text-right font-semibold whitespace-nowrap">${formatCurrencyJS(payment.sum)}</td>
+					<td class="text-sm max-w-xs">${payment.description || '—'}</td>
+					<td>
+						<div class="flex items-center gap-2">
+							<input 
+								type="hidden" 
+								class="payment-link-id"
+								data-payment-id="${payment.id}"
+								data-link-type="${isIncome ? 'wait_income' : 'accural'}"
+								value="" />
+							<span class="text-sm text-base-content/70 payment-link-label flex-1" data-payment-id="${payment.id}">
+								Не выбрано
+							</span>
+							<button 
+								class="btn btn-xs btn-outline ${isIncome ? 'btn-success' : 'btn-primary'}"
+								onclick="openSelector('${payment.id}', '${isIncome ? 'income' : 'expense'}')">
+								<i class="fas fa-search"></i>
+								Выбрать
+							</button>
+							<button 
+								class="btn btn-xs btn-ghost btn-circle payment-clear-btn hidden"
+								data-payment-id="${payment.id}"
+								onclick="clearSelection('${payment.id}')"
+								title="Очистить">
+								<i class="fas fa-times"></i>
+							</button>
+						</div>
+					</td>
+					<td class="text-center">
+						<input 
+							type="checkbox" 
+							class="checkbox checkbox-sm payment-ignore-checkbox"
+							data-payment-id="${payment.id}"
+							${payment.ignore ? 'checked' : ''} />
+					</td>
+				</tr>
+			`;
+		});
+		
+		html += `
+				</tbody>
+			</table>
+			<div class="mt-4 text-sm text-base-content/60">
+				<p><strong>Всего неразнесенных платежей:</strong> ${data.payments.length}</p>
+			</div>
+		`;
+		
+		content.innerHTML = html;
+		
+		// Сохраняем списки глобально для селекторов
+		window.availableAccruals = data.accruals;
+		window.availableWaitIncomes = data.waitIncomes || [];
+		
+	} catch (error) {
+		content.innerHTML = `
+			<div class="alert alert-error">
+				<i class="fas fa-exclamation-circle"></i>
+				<span>${error.message}</span>
+			</div>
+		`;
+	}
+}
+
+function formatDateShort(dateStr) {
+	if (!dateStr) return '—';
+	try {
+		const date = new Date(dateStr);
+		return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+	} catch {
+		return dateStr;
+	}
+}
+
+function formatCurrencyJS(amount) {
+	if (amount === null || amount === undefined) return '—';
+	const num = Number(amount);
+	if (!Number.isFinite(num)) return '—';
+	return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽';
+}
+
+window.openSelector = function(paymentId, paymentType) {
+	currentPaymentId = paymentId;
+	currentPaymentType = paymentType;
+	
+	const modal = document.getElementById('selectorModal');
+	const title = document.getElementById('selectorModalTitle');
+	const tableHead = document.getElementById('selectorTableHead');
+	const list = document.getElementById('selectorList');
+	const searchInput = document.getElementById('selectorSearchInput');
+	
+	let html = '';
+	
+	if (paymentType === 'income') {
+		// Ожидаемые поступления
+		title.innerHTML = '<i class="fas fa-search"></i> Выбор ожидаемого поступления';
+		searchInput.placeholder = 'Поиск по названию...';
+		
+		tableHead.innerHTML = `
+			<tr>
+				<th>Название</th>
+				<th class="text-right">Сумма</th>
+				<th>Дата поступления</th>
+				<th class="text-center">Действие</th>
+			</tr>
+		`;
+		
+		window.availableWaitIncomes.forEach(item => {
+			const escapedName = item.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+			
+			html += `
+				<tr class="selector-row" data-search="${item.name.toLowerCase()}">
+					<td>
+						<div class="font-semibold text-sm">${item.name}</div>
+					</td>
+					<td class="text-right whitespace-nowrap">
+						<span class="font-semibold text-success">${formatCurrencyJS(item.sum)}</span>
+					</td>
+					<td class="whitespace-nowrap">
+						${formatDateShort(item.accrualMonth)}
+					</td>
+					<td class="text-center">
+						<button 
+							class="btn btn-xs btn-success"
+							onclick="selectItem('${item.id}', '${escapedName}', 'income')">
+							Выбрать
+						</button>
+					</td>
+				</tr>
+			`;
+		});
+		
+	} else {
+		// Начисления (расходы)
+		title.innerHTML = '<i class="fas fa-search"></i> Выбор начисления';
+		searchInput.placeholder = 'Поиск по названию, номеру, партнеру или статье затрат...';
+		
+		tableHead.innerHTML = `
+			<tr>
+				<th>Начисление</th>
+				<th>Партнер / Статья</th>
+				<th class="text-right">Баланс</th>
+				<th class="text-center">Действие</th>
+			</tr>
+		`;
+		
+		window.availableAccruals.forEach(accrual => {
+			const escapedName = accrual.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+			const escapedNumber = accrual.number.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+			
+			html += `
+				<tr class="selector-row" data-search="${accrual.name.toLowerCase()} ${accrual.number.toLowerCase()} ${(accrual.partnerName || '').toLowerCase()} ${(accrual.costItemName || '').toLowerCase()}">
+					<td>
+						<div class="font-semibold text-sm">${accrual.name}</div>
+						<div class="text-xs text-base-content/60">${accrual.number}</div>
+					</td>
+					<td>
+						<div class="text-sm">${accrual.costItemName || '—'}</div>
+						<div class="text-xs text-base-content/60">${accrual.partnerName || '—'}</div>
+					</td>
+					<td class="text-right whitespace-nowrap">
+						<span class="font-semibold text-info">${formatCurrencyJS(accrual.balance)}</span>
+					</td>
+					<td class="text-center">
+						<button 
+							class="btn btn-xs btn-primary"
+							onclick="selectItem('${accrual.id}', '${escapedName}', 'expense', '${escapedNumber}')">
+							Выбрать
+						</button>
+					</td>
+				</tr>
+			`;
+		});
+	}
+	
+	list.innerHTML = html;
+	searchInput.value = '';
+	modal.showModal();
+}
+
+window.filterSelectorItems = function() {
+	const searchValue = document.getElementById('selectorSearchInput').value.toLowerCase();
+	const rows = document.querySelectorAll('.selector-row');
+	
+	rows.forEach(row => {
+		const searchData = row.getAttribute('data-search');
+		if (searchData.includes(searchValue)) {
+			row.style.display = '';
+		} else {
+			row.style.display = 'none';
+		}
+	});
+}
+
+window.selectItem = function(itemId, itemName, type, itemNumber) {
+	if (!currentPaymentId) return;
+	
+	// Обновляем скрытое поле
+	const hiddenInput = document.querySelector(`.payment-link-id[data-payment-id="${currentPaymentId}"]`);
+	if (hiddenInput) {
+		hiddenInput.value = itemId;
+	}
+	
+	// Обновляем метку
+	const label = document.querySelector(`.payment-link-label[data-payment-id="${currentPaymentId}"]`);
+	if (label) {
+		if (type === 'income') {
+			label.textContent = itemName;
+		} else {
+			label.textContent = `${itemName} (${itemNumber})`;
+		}
+		label.classList.remove('text-base-content/70');
+		label.classList.add('text-base-content', 'font-medium');
+	}
+	
+	// Показываем кнопку очистки
+	const clearBtn = document.querySelector(`.payment-clear-btn[data-payment-id="${currentPaymentId}"]`);
+	if (clearBtn) {
+		clearBtn.classList.remove('hidden');
+	}
+	
+	// Закрываем модальное окно
+	document.getElementById('selectorModal').close();
+	currentPaymentId = null;
+	currentPaymentType = null;
+}
+
+window.clearSelection = function(paymentId) {
+	// Очищаем скрытое поле
+	const hiddenInput = document.querySelector(`.payment-link-id[data-payment-id="${paymentId}"]`);
+	if (hiddenInput) {
+		hiddenInput.value = '';
+	}
+	
+	// Сбрасываем метку
+	const label = document.querySelector(`.payment-link-label[data-payment-id="${paymentId}"]`);
+	if (label) {
+		label.textContent = 'Не выбрано';
+		label.classList.add('text-base-content/70');
+		label.classList.remove('text-base-content', 'font-medium');
+	}
+	
+	// Скрываем кнопку очистки
+	const clearBtn = document.querySelector(`.payment-clear-btn[data-payment-id="${paymentId}"]`);
+	if (clearBtn) {
+		clearBtn.classList.add('hidden');
+	}
+}
+
+window.filterPaymentsByType = function(filterType) {
+	// Обновляем активную кнопку
+	document.querySelectorAll('.payment-filter-btn').forEach(btn => {
+		if (btn.getAttribute('data-filter') === filterType) {
+			btn.classList.add('btn-active');
+		} else {
+			btn.classList.remove('btn-active');
+		}
+	});
+	
+	// Фильтруем строки
+	const rows = document.querySelectorAll('.payment-row');
+	let visibleCount = 0;
+	
+	rows.forEach(row => {
+		const paymentType = row.getAttribute('data-payment-type');
+		
+		if (filterType === 'all') {
+			row.style.display = '';
+			visibleCount++;
+		} else if (paymentType === filterType) {
+			row.style.display = '';
+			visibleCount++;
+		} else {
+			row.style.display = 'none';
+		}
+	});
+	
+	console.log(`Фильтр: ${filterType}, отображается: ${visibleCount} платежей`);
+}
+
+
+
+window.savePaymentAllocations = async function() {
+	const btn = document.getElementById('btnSaveAllocations');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Сохранение...';
+	
+	// Собираем данные из формы
+	const allocations = [];
+	const hiddenInputs = document.querySelectorAll('.payment-link-id');
+	
+	hiddenInputs.forEach(hiddenInput => {
+		const paymentId = hiddenInput.getAttribute('data-payment-id');
+		const linkType = hiddenInput.getAttribute('data-link-type');
+		const linkId = hiddenInput.value;
+		const ignoreCheckbox = document.querySelector(`.payment-ignore-checkbox[data-payment-id="${paymentId}"]`);
+		const ignore = ignoreCheckbox ? ignoreCheckbox.checked : false;
+		
+		const allocation = {
+			paymentId,
+			ignore
+		};
+		
+		// Добавляем правильное поле в зависимости от типа связи
+		if (linkType === 'wait_income') {
+			allocation.waitIncomeId = linkId || null;
+			allocation.accrualId = null;
+		} else {
+			allocation.accrualId = linkId || null;
+			allocation.waitIncomeId = null;
+		}
+		
+		allocations.push(allocation);
+	});
+	
+	try {
+		const response = await fetch('/xapi/tochka/save-allocations', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ allocations })
+		});
+		
+	const data = response;
+		
+		if (!data.success) {
+			throw new Error(data.message || 'Ошибка сохранения');
+		}
+		
+		// Закрываем модальное окно и перезагружаем страницу
+		document.getElementById('paymentsModal').close();
+		window.location.reload();
+		
+	} catch (error) {
+		alert('Ошибка: ' + error.message);
+		btn.disabled = false;
+		btn.innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
+	}
+}
+
+function openAddWaitIncomeModal() {
+	// Устанавливаем текущий месяц по умолчанию
+	const now = new Date();
+	const currentMonth = now.toISOString().substring(0, 7); // YYYY-MM формат
+	document.getElementById('waitIncomeMonth').value = currentMonth;
+	
+	// Очищаем форму
+	document.getElementById('addWaitIncomeForm').reset();
+	document.getElementById('waitIncomeMonth').value = currentMonth;
+	
+	// Показываем модальное окно
+	document.getElementById('addWaitIncomeModal').showModal();
+}
+
+function openEditWaitIncomeModal(element) {
+	console.log('=== ОТЛАДКА ОТКРЫТИЯ МОДАЛЬНОГО ОКНА ===');
+	console.log('Элемент:', element);
+	
+	// Получаем данные из data-атрибутов
+	const id = element.dataset.id;
+	const name = element.dataset.name;
+	const sum = element.dataset.sum; // Теперь это оригинальная сумма
+	const accrualMonth = element.dataset.accrualMonth;
+	
+	console.log('Данные из data-атрибутов:', { id, name, sum, accrualMonth });
+	
+	// Проверяем существование элементов формы
+	const formElements = {
+		editWaitIncomeId: document.getElementById('editWaitIncomeId'),
+		editWaitIncomeName: document.getElementById('editWaitIncomeName'),
+		editWaitIncomeSum: document.getElementById('editWaitIncomeSum'),
+		editWaitIncomeMonth: document.getElementById('editWaitIncomeMonth'),
+		editWaitIncomeModal: document.getElementById('editWaitIncomeModal'),
+		btnEditWaitIncome: document.getElementById('btnEditWaitIncome'),
+		btnDeleteWaitIncome: document.getElementById('btnDeleteWaitIncome')
+	};
+	
+	console.log('Элементы формы:', formElements);
+	
+	// Проверяем, что все элементы найдены
+	const missingElements = Object.entries(formElements)
+		.filter(([key, element]) => !element)
+		.map(([key]) => key);
+	
+	if (missingElements.length > 0) {
+		console.error('Не найдены элементы формы:', missingElements);
+		alert('Ошибка: не найдены элементы формы: ' + missingElements.join(', '));
+		return;
+	}
+	
+	// Заполняем форму
+	document.getElementById('editWaitIncomeId').value = id;
+	document.getElementById('editWaitIncomeName').value = name;
+	document.getElementById('editWaitIncomeSum').value = sum;
+	
+	// Преобразуем дату из YYYY-MM-DD в YYYY-MM для input[type="month"]
+	const monthValue = accrualMonth ? accrualMonth.substring(0, 7) : '';
+	console.log('Значение месяца для поля ввода:', monthValue);
+	document.getElementById('editWaitIncomeMonth').value = monthValue;
+	
+	console.log('Значения полей после заполнения:', {
+		id: document.getElementById('editWaitIncomeId').value,
+		name: document.getElementById('editWaitIncomeName').value,
+		sum: document.getElementById('editWaitIncomeSum').value,
+		month: document.getElementById('editWaitIncomeMonth').value
+	});
+	
+	// Показываем модальное окно
+	console.log('Открываем модальное окно...');
+	document.getElementById('editWaitIncomeModal').showModal();
+}
+
+async function submitEditWaitIncomeForm() {
+	const btn = document.getElementById('btnEditWaitIncome');
+	btn.disabled = true;
+	btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Сохранение...';
+	
+	try {
+		const id = document.getElementById('editWaitIncomeId').value;
+		const name = document.getElementById('editWaitIncomeName').value;
+		const sum = parseFloat(document.getElementById('editWaitIncomeSum').value);
+		const accrualMonth = document.getElementById('editWaitIncomeMonth').value;
+		
+		const data = {
+			name: name,
+			sum: sum,
+			accrual_month: accrualMonth + '-01' // Добавляем день для полной даты
+		};
+		
+		console.log('=== ОТЛАДКА ОБНОВЛЕНИЯ ===');
+		console.log('ID записи:', id);
+		console.log('Данные для отправки:', data);
+		console.log('URL запроса:', `/xapi/wait-incomes/update?id=${id}`);
+		
+		const response = await fetch(`/xapi/wait-incomes/update?id=${id}`, {
+			method: 'PATCH',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify(data)
+		});
+		
+		console.log('Статус ответа:', response.status);
+		console.log('Headers ответа:', Object.fromEntries(response.headers.entries()));
+		
+	const result = response;
+		console.log('Ответ сервера:', result);
+		
+		if (!response.ok) {
+			console.error('Ошибка HTTP:', response.status, response.statusText);
+			throw new Error(result.error || result.message || 'Ошибка при обновлении ожидаемого платежа');
+		}
+		
+		if (!result.success) {
+			console.error('Ошибка в ответе:', result.error);
+			throw new Error(result.error || 'Ошибка при обновлении ожидаемого платежа');
+		}
+		
+		console.log('Обновление успешно, перезагружаем страницу...');
+		
+		// Закрываем модальное окно и перезагружаем страницу
+		document.getElementById('editWaitIncomeModal').close();
+		window.location.reload();
+		
+	} catch (error) {
+		console.error('=== ОШИБКА ОБНОВЛЕНИЯ ===');
+		console.error('Тип ошибки:', error.constructor.name);
+		console.error('Сообщение ошибки:', error.message);
+		console.error('Stack trace:', error.stack);
+		
+		alert('Ошибка: ' + error.message);
+		btn.disabled = false;
+		btn.innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
+	}
+}
+
+async function deleteWaitIncome() {
+	if (!confirm('Вы уверены, что хотите удалить этот ожидаемый платеж?')) {
+		console.log('Удаление отменено пользователем');
+		return;
+	}
+	
+	const btn = document.getElementById('btnDeleteWaitIncome');
+	const originalText = btn.innerHTML;
+	btn.disabled = true;
+	btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Удаление...';
+	
+	try {
+		const id = document.getElementById('editWaitIncomeId').value;
+		
+		console.log('=== ОТЛАДКА УДАЛЕНИЯ ===');
+		console.log('ID записи для удаления:', id);
+		console.log('URL запроса (простой xapi):', `/xapi/wait-incomes/delete-simple?id=${id}`);
+		
+		const response = await fetch(`/xapi/wait-incomes/delete-simple?id=${id}`, {
+			method: 'DELETE',
+			headers: {
+				'Content-Type': 'application/json',
+			}
+		});
+		
+		console.log('Статус ответа:', response.status);
+		console.log('Headers ответа:', Object.fromEntries(response.headers.entries()));
+		
+	const result = response;
+		console.log('Ответ сервера:', result);
+		
+		if (!response.ok) {
+			console.error('Ошибка HTTP:', response.status, response.statusText);
+			throw new Error(result.error || result.message || 'Ошибка при удалении ожидаемого платежа');
+		}
+		
+		if (!result.success) {
+			console.error('Ошибка в ответе:', result.error);
+			throw new Error(result.error || 'Ошибка при удалении ожидаемого платежа');
+		}
+		
+		console.log('Удаление успешно, перезагружаем страницу...');
+		
+		// Закрываем модальное окно и перезагружаем страницу
+		document.getElementById('editWaitIncomeModal').close();
+		window.location.reload();
+		
+	} catch (error) {
+		console.error('=== ОШИБКА УДАЛЕНИЯ ===');
+		console.error('Тип ошибки:', error.constructor.name);
+		console.error('Сообщение ошибки:', error.message);
+		console.error('Stack trace:', error.stack);
+		
+		alert('Ошибка: ' + error.message);
+		btn.disabled = false;
+		btn.innerHTML = originalText;
+	}
+}
+
+// Обработчик отправки формы добавления ожидаемого платежа
+document.addEventListener('DOMContentLoaded', function() {
+	const form = document.getElementById('addWaitIncomeForm');
+	if (form) {
+		form.addEventListener('submit', async function(e) {
+			e.preventDefault();
+			
+			const btn = document.getElementById('btnSubmitWaitIncome');
+			btn.disabled = true;
+			btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Сохранение...';
+			
+			try {
+				const formData = new FormData(form);
+				const data = {
+					name: formData.get('name'),
+					sum: parseFloat(formData.get('sum')),
+					accrual_month: formData.get('accrual_month') + '-01' // Добавляем день для полной даты
+				};
+				
+				const response = await fetch('/xapi/wait-incomes/create', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(data)
+				});
+				
+				const result = response;
+				
+				if (!result.success) {
+					throw new Error(result.message || 'Ошибка при создании записи');
+				}
+				
+				// Закрываем модальное окно и перезагружаем страницу
+				document.getElementById('addWaitIncomeModal').close();
+				window.location.reload();
+				
+			} catch (error) {
+				alert('Ошибка: ' + error.message);
+				btn.disabled = false;
+				btn.innerHTML = '<i class="fas fa-save"></i> Сохранить';
+			}
+		});
+	}
+	
+	// Обработчик отправки формы редактирования ожидаемого платежа
+	const editForm = document.getElementById('editWaitIncomeForm');
+	if (editForm) {
+		editForm.addEventListener('submit', async function(e) {
+			e.preventDefault();
+			await submitEditWaitIncomeForm();
+		});
+	}
+});
+</script>

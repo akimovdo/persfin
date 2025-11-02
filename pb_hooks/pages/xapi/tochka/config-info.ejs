@@ -1,0 +1,37 @@
+<%
+/**
+ * GET /xapi/tochka/config-info
+ * Получение информации о текущей конфигурации (для отладки)
+ */
+
+if (request.method !== 'GET') {
+  return response.json(405, { 
+    success: false,
+    error: 'Method Not Allowed'
+  });
+}
+
+const config = $app.findFirstRecordByFilter('tochka_config', 'is_active = true');
+
+if (!config) {
+  return response.json(404, {
+    success: false,
+    error: 'Конфигурация не найдена'
+  });
+}
+
+return response.json(200, {
+  success: true,
+  data: {
+    id: config.id,
+    client_id: config.getString('client_id'),
+    account_id: config.getString('account_id'),
+    is_active: config.getBool('is_active'),
+    last_sync_date: config.getString('last_sync_date'),
+    endDateBalance: config.getFloat('endDateBalance'),
+    description: config.getString('description'),
+    created: config.getString('created'),
+    updated: config.getString('updated')
+  }
+});
+%>

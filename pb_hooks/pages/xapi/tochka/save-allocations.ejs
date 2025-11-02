@@ -1,0 +1,98 @@
+<%
+meta('layout', false);
+
+/**
+ * Endpoint: POST /xapi/tochka/save-allocations
+ * Сохранение связей платежей с начислениями или ожидаемыми поступлениями
+ * Body: { allocations: [{ paymentId, accrualId, waitIncomeId, ignore }] }
+ */
+
+if (request.method !== 'POST') {
+  return response.json(405, {
+    success: false,
+    error: 'Method not allowed'
+  });
+}
+
+try {
+	// Парсим body запроса
+	const bodyRaw = request.body();
+	let requestData;
+	
+	if (typeof bodyRaw === 'string') {
+		try {
+			requestData = JSON.parse(bodyRaw);
+		} catch (parseError) {
+			throw new Error('Invalid JSON in request body');
+		}
+	} else {
+		requestData = bodyRaw;
+	}
+	
+	const allocations = requestData.allocations;
+	
+	if (!Array.isArray(allocations)) {
+		throw new Error('allocations must be an array');
+	}
+	
+	let updated = 0;
+	let errors = [];
+	
+	// Обновляем каждый платеж
+	for (let i = 0; i < allocations.length; i++) {
+		const allocation = allocations[i];
+		const { paymentId, accrualId, waitIncomeId, ignore } = allocation;
+		
+		try {
+			// Получаем платеж
+			const payment = $app.findRecordById('payments', paymentId);
+			
+			// Обновляем поля в зависимости от типа связи
+			if (waitIncomeId && waitIncomeId !== '') {
+				// Связываем с ожидаемым поступлением
+				payment.set('wait_income', waitIncomeId);
+				payment.set('accural', ''); // Очищаем accural
+				payment.set('ignore', false);
+			} else if (accrualId && accrualId !== '') {
+				// Связываем с начислением
+				payment.set('accural', accrualId);
+				payment.set('wait_income', ''); // Очищаем wait_income
+				payment.set('ignore', false);
+			} else if (ignore === true) {
+				// Игнорируем платеж
+				payment.set('ignore', true);
+				payment.set('accural', '');
+				payment.set('wait_income', '');
+			} else {
+				// Очищаем все связи
+				payment.set('accural', '');
+				payment.set('wait_income', '');
+				payment.set('ignore', false);
+			}
+			
+			// Сохраняем
+			$app.save(payment);
+			updated++;
+			
+		} catch (error) {
+			errors.push({
+				paymentId: paymentId,
+				error: error.message || String(error)
+			});
+		}
+	}
+	
+	return response.json(200, {
+		success: true,
+		updated: updated,
+		errors: errors,
+		message: `Обновлено платежей: ${updated}, ошибок: ${errors.length}`
+	});
+	
+} catch (error) {
+	return response.json(500, {
+		success: false,
+		message: error.message || String(error)
+	});
+}
+-%>

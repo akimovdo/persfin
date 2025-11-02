@@ -1,0 +1,145 @@
+<%
+/**
+ * Endpoint: POST /xapi/wait-incomes/generate-from-planned
+ * Генерация ожидаемых поступлений на основе планируемых доходов
+ * Body: { month: 'YYYY-MM' } - месяц для генерации (необязательно, по умолчанию текущий)
+ */
+
+try {
+	// Парсим body запроса
+	const bodyRaw = request.body();
+	let requestData = {};
+	
+	if (typeof bodyRaw === 'string' && bodyRaw.length > 0) {
+		try {
+			requestData = JSON.parse(bodyRaw);
+		} catch (parseError) {
+			// Если не удалось распарсить, используем пустой объект
+		}
+	} else if (typeof bodyRaw === 'object') {
+		requestData = bodyRaw;
+	}
+	
+	// Определяем месяц для генерации
+	let targetMonth;
+	let year, month;
+	
+	if (requestData.month) {
+		// Формат: 'YYYY-MM'
+		const parts = requestData.month.split('-');
+		year = parseInt(parts[0]);
+		month = parseInt(parts[1]);
+	} else {
+		// Текущий месяц
+		const now = new Date();
+		year = now.getFullYear();
+		month = now.getMonth() + 1; // JavaScript месяцы 0-11, нам нужно 1-12
+	}
+	
+	// Форматируем дату для accrual_month (первое число месяца)
+	const monthStr = month < 10 ? '0' + month : '' + month;
+	const accrualMonthStr = `${year}-${monthStr}-01`;
+	
+	// Получаем все планируемые доходы
+	const plannedIncomes = $app.findRecordsByFilter(
+		'planned_income',
+		'',
+		'name',
+		0,
+		0
+	);
+	
+	if (plannedIncomes.length === 0) {
+		return response.json(200, {
+			success: true,
+			message: 'Нет планируемых доходов для генерации',
+			generated: 0,
+			skipped: 0,
+			errors: [],
+			month: accrualMonthStr,
+			debug: {
+				plannedIncomesCount: 0,
+				message: 'Таблица planned_income пуста или не содержит записей'
+			}
+		});
+	}
+	
+	let generated = 0;
+	let skipped = 0;
+	let errors = [];
+	
+	// Для каждого планируемого дохода создаем ожидаемое поступление
+	for (let i = 0; i < plannedIncomes.length; i++) {
+		const planned = plannedIncomes[i];
+		
+		try {
+			const plannedSum = planned.get('sum');
+			const plannedName = planned.getString('name');
+			
+			// Парсим сумму
+			let sum = 0;
+			if (typeof plannedSum === 'number') {
+				sum = plannedSum;
+			} else if (typeof plannedSum === 'string') {
+				sum = parseFloat(plannedSum.replace(',', '.')) || 0;
+			}
+			
+			// Определяем день ожидаемого поступления для accrual_month
+			// Используем первое число месяца для accrual_month
+			
+			// Проверяем, существует ли уже такое ожидаемое поступление
+			let existing = null;
+			try {
+				existing = $app.findFirstRecordByFilter(
+					'wait_incomes',
+					`name = "${plannedName}" && accural_month = "${accrualMonthStr}"`
+				);
+			} catch (e) {
+				// Запись не найдена - это нормально, создаем новую
+			}
+			
+			if (existing) {
+				skipped++;
+				continue;
+			}
+			
+			// Создаем новое ожидаемое поступление
+			const collection = $app.findCollectionByNameOrId('wait_incomes');
+			const record = new Record(collection);
+			
+			record.set('name', plannedName);
+			record.set('sum', sum);
+			record.set('accural_month', accrualMonthStr + ' 00:00:00.000Z');
+			
+			$app.save(record);
+			generated++;
+			
+		} catch (error) {
+			errors.push({
+				plannedIncomeId: planned.id,
+				name: planned.getString('name'),
+				error: error.message || String(error)
+			});
+		}
+	}
+	
+	return response.json(200, {
+		success: true,
+		message: `Создано ожидаемых поступлений: ${generated}, пропущено: ${skipped}`,
+		generated: generated,
+		skipped: skipped,
+		errors: errors,
+		month: accrualMonthStr,
+		debug: {
+			plannedIncomesCount: plannedIncomes.length,
+			totalProcessed: generated + skipped + errors.length
+		}
+	});
+	
+} catch (error) {
+	return response.json(500, {
+		success: false,
+		message: error.message || String(error)
+	});
+}
+-%>

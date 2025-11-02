@@ -1,0 +1,116 @@
+<%
+/**
+ * Endpoint: POST /xapi/wait-incomes/create
+ * Создание нового ожидаемого поступления
+ * Body: { name: string, sum: number, accrual_month: string }
+ */
+
+try {
+	// Парсим body запроса
+	const bodyRaw = request.body();
+	let requestData = {};
+	
+	if (typeof bodyRaw === 'string' && bodyRaw.length > 0) {
+		try {
+			requestData = JSON.parse(bodyRaw);
+		} catch (parseError) {
+			return response.json(400, {
+				success: false,
+				message: 'Невалидный JSON в теле запроса'
+			});
+		}
+	} else if (typeof bodyRaw === 'object') {
+		requestData = bodyRaw;
+	} else {
+		return response.json(400, {
+			success: false,
+			message: 'Отсутствует тело запроса'
+		});
+	}
+	
+	// Валидация обязательных полей
+	if (!requestData.name || typeof requestData.name !== 'string') {
+		return response.json(400, {
+			success: false,
+			message: 'Поле "name" обязательно и должно быть строкой'
+		});
+	}
+	
+	if (!requestData.sum || typeof requestData.sum !== 'number' || requestData.sum <= 0) {
+		return response.json(400, {
+			success: false,
+			message: 'Поле "sum" обязательно и должно быть положительным числом'
+		});
+	}
+	
+	if (!requestData.accrual_month || typeof requestData.accrual_month !== 'string') {
+		return response.json(400, {
+			success: false,
+			message: 'Поле "accrual_month" обязательно и должно быть строкой в формате YYYY-MM-DD'
+		});
+	}
+	
+	// Проверяем формат даты (должно быть YYYY-MM-DD)
+	const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+	if (!dateRegex.test(requestData.accrual_month)) {
+		return response.json(400, {
+			success: false,
+			message: 'Поле "accrual_month" должно быть в формате YYYY-MM-DD'
+		});
+	}
+	
+	// Проверяем, что дата валидна
+	const accrualDate = new Date(requestData.accrual_month + 'T00:00:00.000Z');
+	if (isNaN(accrualDate.getTime())) {
+		return response.json(400, {
+			success: false,
+			message: 'Невалидная дата в поле "accrual_month"'
+		});
+	}
+	
+	// Проверяем, существует ли уже такое ожидаемое поступление
+	let existing = null;
+	try {
+		existing = $app.findFirstRecordByFilter(
+			'wait_incomes',
+			`name = "${requestData.name}" && accural_month = "${requestData.accrual_month}"`
+		);
+	} catch (e) {
+		// Запись не найдена - это нормально, создаем новую
+	}
+	
+	if (existing) {
+		return response.json(409, {
+			success: false,
+			message: `Ожидаемое поступление "${requestData.name}" на ${requestData.accrual_month} уже существует`
+		});
+	}
+	
+	// Создаем новое ожидаемое поступление
+	const collection = $app.findCollectionByNameOrId('wait_incomes');
+	const record = new Record(collection);
+	
+	record.set('name', requestData.name.trim());
+	record.set('sum', requestData.sum);
+	record.set('accural_month', requestData.accrual_month + ' 00:00:00.000Z');
+	
+	$app.save(record);
+	
+	return response.json(201, {
+		success: true,
+		message: `Ожидаемое поступление "${requestData.name}" успешно создано`,
+		data: {
+			id: record.id,
+			name: record.getString('name'),
+			sum: record.get('sum'),
+			accrual_month: record.getString('accural_month')
+		}
+	});
+	
+} catch (error) {
+	return response.json(500, {
+		success: false,
+		message: 'Внутренняя ошибка сервера: ' + (error.message || String(error))
+	});
+}
+-%>

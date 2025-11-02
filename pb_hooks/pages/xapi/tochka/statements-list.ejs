@@ -1,0 +1,40 @@
+<%
+/**
+ * GET /xapi/tochka/statements-list
+ * Получение списка всех доступных выписок из Точка банка
+ */
+
+// Проверка метода запроса
+if (request.method !== 'GET') {
+  return response.json(405, { 
+    success: false,
+    error: 'Method Not Allowed',
+    message: 'Используйте GET метод для этого эндпоинта'
+  });
+}
+
+// Выполнить запрос к API Точка
+const result = data.makeApiRequest(data.ENDPOINTS.STATEMENTS, {
+  method: 'GET'
+});
+
+// Проверка результата
+if (!result.success) {
+  return response.json(result.statusCode || 500, {
+    success: false,
+    error: result.error,
+    message: result.message,
+    details: result.details
+  });
+}
+
+// Обновить дату последней синхронизации
+data.updateLastSyncDate();
+
+// Вернуть успешный результат
+return response.json(200, {
+  success: true,
+  data: result.data,
+  synced_at: new Date().toISOString()
+});
+%>

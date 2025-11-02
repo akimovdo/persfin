@@ -1,0 +1,307 @@
+<%
+meta('title', 'Все начисления с расчётом дней');
+
+let allAccruals = [];
+let error = null;
+let totalCount = 0;
+
+try {
+    // Получаем все записи из представления
+    allAccruals = $app.findRecordsByFilter('accruals_all_with_status', '', '-updated', 0, 50);
+    totalCount = allAccruals.length;
+    
+    console.log('=== ВСЕ НАЧИСЛЕНИЯ С РАСЧЁТОМ ДНЕЙ ===');
+    console.log('Время:', new Date().toLocaleString('ru-RU'));
+    console.log('Текущая дата:', new Date().toISOString().split('T')[0]);
+    console.log('Найдено записей:', totalCount);
+    console.log('');
+    
+    // Выводим первые 10 записей в консоль
+    allAccruals.slice(0, 10).forEach((record, index) => {
+        const data = {
+            id: record.getString('id'),
+            name: record.getString('accrual_name'),
+            partner: record.getString('partner_name'),
+            repaymentDate: record.getString('repayment_date'),
+            daysDifference: record.get('days_difference'),
+            balance: record.get('balance')
+        };
+        
+        console.log(`--- Запись ${index + 1} ---`);
+        console.log('Название:', data.name);
+        console.log('Партнер:', data.partner);
+        console.log('Дата погашения:', data.repaymentDate);
+        console.log('days_difference:', data.daysDifference, '(', typeof data.daysDifference, ')');
+        console.log('Баланс:', data.balance);
+        console.log('');
+    });
+    
+    console.log('=== КОНЕЦ СПИСКА ===');
+    
+} catch (err) {
+    error = err;
+    console.log('ОШИБКА получения данных:', err.message);
+}
+
+// Функция для определения статуса
+const getStatusInfo = (daysDifference) => {
+    if (typeof daysDifference !== 'number') {
+        return { status: 'unknown', label: 'Неопределено', class: 'badge-ghost' };
+    }
+    if (daysDifference < 0) {
+        return { 
+            status: 'overdue', 
+            label: `Просрочено ${Math.abs(daysDifference)} дн.`, 
+            class: 'badge-error' 
+        };
+    }
+    if (daysDifference === 0) {
+        return { 
+            status: 'due-today', 
+            label: 'Оплата сегодня', 
+            class: 'badge-warning' 
+        };
+    }
+    return { 
+        status: 'upcoming', 
+        label: `До оплаты ${daysDifference} дн.`, 
+        class: 'badge-info' 
+    };
+};
+
+// Поиск записей с "Денис" в названии
+const denisRecords = allAccruals.filter(record => {
+    const name = record.getString('accrual_name').toLowerCase();
+    const partner = record.getString('partner_name').toLowerCase();
+    return name.includes('денис') || partner.includes('денис');
+});
+
+// Записи с датой погашения 31.10.2025
+const oct31Records = allAccruals.filter(record => 
+    record.getString('repayment_date') === '2025-10-31'
+);
+
+%>
+
+<div class="container mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-4">Все начисления с расчётом дней</h1>
+    
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle"></i>
+        <span>Показаны первые 50 записей. Подробная информация выводится в консоль PocketBase.</span>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="stats shadow">
+            <div class="stat">
+                <div class="stat-title">Всего записей</div>
+                <div class="stat-value text-primary"><%= totalCount %></div>
+            </div>
+        </div>
+        
+        <div class="stats shadow">
+            <div class="stat">
+                <div class="stat-title">С "Денис"</div>
+                <div class="stat-value text-secondary"><%= denisRecords.length %></div>
+            </div>
+        </div>
+        
+        <div class="stats shadow">
+            <div class="stat">
+                <div class="stat-title">Дата 31.10.2025</div>
+                <div class="stat-value text-accent"><%= oct31Records.length %></div>
+            </div>
+        </div>
+    </div>
+    
+    <% if (error) { %>
+        <div class="alert alert-error mb-4">
+            <span>Ошибка: <%= error.message %></span>
+        </div>
+    <% } %>
+    
+    <% if (denisRecords.length > 0) { %>
+        <div class="card bg-base-100 shadow mb-6">
+            <div class="card-body">
+                <h2 class="card-title text-secondary">Записи с "Денис" (<%= denisRecords.length %>)</h2>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra table-sm">
+                        <thead>
+                            <tr>
+                                <th>Название</th>
+                                <th>Партнер</th>
+                                <th>Дата погашения</th>
+                                <th>days_difference</th>
+                                <th>Статус</th>
+                                <th>Баланс</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% denisRecords.forEach(record => { %>
+                                <% 
+                                const daysDiff = record.get('days_difference');
+                                const statusInfo = getStatusInfo(daysDiff);
+                                const repaymentDate = record.getString('repayment_date');
+                                const isTargetRecord = repaymentDate === '2025-10-31';
+                                %>
+                                <tr class="<%= isTargetRecord ? 'bg-warning/20 ring-2 ring-warning' : statusInfo.status === 'overdue' ? 'bg-error/10' : statusInfo.status === 'due-today' ? 'bg-warning/10' : '' %>">
+                                    <td>
+                                        <div class="font-semibold">
+                                            <%= record.getString('accrual_name') %>
+                                            <% if (isTargetRecord) { %>
+                                                <span class="badge badge-warning badge-sm ml-1">ЦЕЛЕВАЯ</span>
+                                            <% } %>
+                                        </div>
+                                        <div class="text-xs text-base-content/60">ID: <%= record.getString('id').substring(0, 8) %>...</div>
+                                    </td>
+                                    <td><%= record.getString('partner_name') %></td>
+                                    <td class="whitespace-nowrap">
+                                        <%= repaymentDate %>
+                                        <% if (isTargetRecord) { %>
+                                            <span class="badge badge-warning badge-xs">🎯</span>
+                                        <% } %>
+                                    </td>
+                                    <td class="font-mono">
+                                        <span class="<%= daysDiff === -1 && isTargetRecord ? 'text-success font-bold' : daysDiff === 0 && isTargetRecord ? 'text-warning font-bold' : '' %>">
+                                            <%= daysDiff %>
+                                        </span>
+                                        <div class="text-xs text-base-content/60">(<%= typeof daysDiff %>)</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge <%= statusInfo.class %>"><%= statusInfo.label %></span>
+                                        <% if (isTargetRecord) { %>
+                                            <div class="text-xs mt-1">
+                                                <% if (daysDiff === -1) { %>
+                                                    <span class="text-success">✓ Правильно!</span>
+                                                <% } else if (daysDiff === 0) { %>
+                                                    <span class="text-warning">⚠ Проблема</span>
+                                                <% } else { %>
+                                                    <span class="text-error">✗ Ошибка</span>
+                                                <% } %>
+                                            </div>
+                                        <% } %>
+                                    </td>
+                                    <td class="text-right">
+                                        <div class="font-semibold <%= record.get('balance') > 0 ? 'text-error' : 'text-success' %>">
+                                            <%= typeof record.get('balance') === 'number' ? record.get('balance').toFixed(2) + ' ₽' : record.get('balance') %>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    <% } %>
+    
+    <% if (oct31Records.length > 0) { %>
+        <div class="card bg-base-100 shadow mb-6">
+            <div class="card-body">
+                <h2 class="card-title text-accent">Записи с датой погашения 31.10.2025 (<%= oct31Records.length %>)</h2>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra table-sm">
+                        <thead>
+                            <tr>
+                                <th>Название</th>
+                                <th>Партнер</th>
+                                <th>days_difference</th>
+                                <th>Статус</th>
+                                <th>Ожидаемый результат</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% oct31Records.forEach(record => { %>
+                                <% 
+                                const daysDiff = record.get('days_difference');
+                                const statusInfo = getStatusInfo(daysDiff);
+                                const isCorrect = daysDiff === -1;
+                                %>
+                                <tr class="<%= isCorrect ? 'bg-success/10' : 'bg-error/10' %>">
+                                    <td>
+                                        <div class="font-semibold"><%= record.getString('accrual_name') %></div>
+                                        <div class="text-xs text-base-content/60">ID: <%= record.getString('id').substring(0, 8) %>...</div>
+                                    </td>
+                                    <td><%= record.getString('partner_name') %></td>
+                                    <td class="font-mono">
+                                        <span class="<%= isCorrect ? 'text-success' : 'text-error' %> font-bold">
+                                            <%= daysDiff %>
+                                        </span>
+                                        <div class="text-xs text-base-content/60">(<%= typeof daysDiff %>)</div>
+                                    </td>
+                                    <td>
+                                        <span class="badge <%= statusInfo.class %>"><%= statusInfo.label %></span>
+                                    </td>
+                                    <td>
+                                        <% if (isCorrect) { %>
+                                            <span class="text-success">✓ Просрочено 1 дн.</span>
+                                        <% } else { %>
+                                            <span class="text-error">✗ Должно быть "Просрочено 1 дн."</span>
+                                        <% } %>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    <% } %>
+    
+    <div class="card bg-base-100 shadow">
+        <div class="card-body">
+            <h2 class="card-title">Первые 15 записей (все)</h2>
+            <div class="overflow-x-auto">
+                <table class="table table-zebra table-sm">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Название</th>
+                            <th>Партнер</th>
+                            <th>Дата погашения</th>
+                            <th>days_difference</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% allAccruals.slice(0, 15).forEach((record, index) => { %>
+                            <% 
+                            const daysDiff = record.get('days_difference');
+                            const statusInfo = getStatusInfo(daysDiff);
+                            %>
+                            <tr>
+                                <td><%= index + 1 %></td>
+                                <td>
+                                    <div class="max-w-xs truncate"><%= record.getString('accrual_name') %></div>
+                                </td>
+                                <td>
+                                    <div class="max-w-xs truncate"><%= record.getString('partner_name') %></div>
+                                </td>
+                                <td class="whitespace-nowrap text-sm"><%= record.getString('repayment_date') %></td>
+                                <td class="font-mono text-sm">
+                                    <%= daysDiff %> (<%= typeof daysDiff %>)
+                                </td>
+                                <td>
+                                    <span class="badge <%= statusInfo.class %> badge-sm"><%= statusInfo.label %></span>
+                                </td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-6 flex gap-2">
+        <button onclick="window.location.reload()" class="btn btn-primary">
+            <i class="fas fa-sync-alt"></i>
+            Обновить данные
+        </button>
+        <a href="/debug/search_tinek" class="btn btn-secondary">
+            Поиск Тинек
+        </a>
+        <a href="/dashboard" class="btn btn-ghost">
+            Дашборд
+        </a>
+    </div>
+</div>

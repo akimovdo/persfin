@@ -1,0 +1,15 @@
+<%
+try {
+	return response.json(200, {
+		success: true,
+		message: 'Test endpoint works!',
+		url: request.url(),
+		method: request.method
+	});
+} catch (error) {
+	return response.json(500, {
+		success: false,
+		error: error.message
+	});
+}
+%>

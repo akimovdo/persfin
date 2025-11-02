@@ -1,0 +1,100 @@
+<%
+/**
+ * Автоматическая синхронизация банка с последней даты синхронизации
+ * GET /xapi/tochka/auto-sync
+ */
+
+if ($req.method !== 'GET') {
+  response.status = 405
+  response.json({
+    success: false,
+    error: 'Method Not Allowed',
+    message: 'Используйте метод GET'
+  })
+  return
+}
+
+try {
+  // Получить активную конфигурацию
+  const config = data.tochkaConfig
+  
+  if (!config) {
+    response.status = 503
+    response.json({
+      success: false,
+      error: 'No Active Config',
+      message: 'Активная конфигурация Точка банка не найдена'
+    })
+    return
+  }
+  
+  // Определить даты для выписки
+  const lastSyncDate = config.get('last_sync_date')
+  let startDate
+  
+  if (lastSyncDate) {
+    // Если есть дата последней синхронизации, начинаем с неё
+    const lastSyncDateObj = new Date(lastSyncDate)
+    startDate = data.formatDateForApi(lastSyncDateObj.toISOString())
+  } else {
+    // Если нет, берём последний месяц
+    const lastMonth = new Date()
+    lastMonth.setMonth(lastMonth.getMonth() - 1)
+    startDate = data.formatDateForApi(lastMonth.toISOString())
+  }
+  
+  const endDate = data.formatDateForApi(new Date().toISOString())
+  
+  // Инициировать выписку
+  const initResult = data.makeApiRequest(data.ENDPOINTS.INIT_STATEMENT, {
+    method: 'POST',
+    body: JSON.stringify({
+      Data: {
+        Statement: {
+          startDateTime: startDate,
+          endDateTime: endDate
+        }
+      }
+    })
+  })
+  
+  if (!initResult.success) {
+    response.status = initResult.statusCode || 500
+    response.json(initResult)
+    return
+  }
+  
+  const statementId = initResult.data?.Data?.Statement?.statementId
+  
+  if (!statementId) {
+    response.status = 500
+    response.json({
+      success: false,
+      error: 'Invalid Response',
+      message: 'Не удалось получить statementId',
+      data: initResult.data
+    })
+    return
+  }
+  
+  response.json({
+    success: true,
+    message: 'Выписка инициирована. Используйте statementId для получения данных через несколько секунд.',
+    data: {
+      statementId: statementId,
+      startDate: startDate,
+      endDate: endDate,
+      lastSyncDate: lastSyncDate
+    }
+  })
+  
+} catch (error) {
+  response.status = 500
+  response.json({
+    success: false,
+    error: 'Internal Error',
+    message: error.message || 'Внутренняя ошибка сервера',
+    details: error
+  })
+}
+%>

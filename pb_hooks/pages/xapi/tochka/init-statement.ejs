@@ -1,0 +1,143 @@
+<% async
+<%#
+ POST /xapi/tochka/init-statement
+ Инициация создания выписки по счёту за период
+ 
+ Body (JSON):
+ {
+   "startDateTime": "2025-10-01",
+   "endDateTime": "2025-10-31",
+   "accountId": "optional" если не указан, используется из конфига
+ }
+%>
+
+<%# Проверка метода запроса %>
+if (request.method !== 'POST') {
+  return response.json(405, { 
+    success: false,
+    error: 'Method Not Allowed',
+    message: 'Используйте POST метод для этого эндпоинта'
+  });
+}
+
+<%# Логируем входящий запрос %>
+console.log('[init-statement] requestData:', JSON.stringify(body(), null, 2));
+
+<%# Получить данные из body %>
+var requestData = body() || {};
+
+<%# Определение дат: если не указаны, берём из последней синхронизации %>
+  var startDateTime = requestData.startDateTime;
+  var endDateTime = requestData.endDateTime;
+
+<%# Если даты не переданы, определяем автоматически %>
+if (!startDateTime || !endDateTime) {
+  try {
+    // Получаем конфигурацию напрямую из БД
+  var config = $app.findFirstRecordByFilter('tochka_config', 'is_active = true');
+  var lastSync = config.get('last_sync_date');
+    
+    if (lastSync) {
+  <%# Если есть последняя синхронизация, начинаем с неё %>
+      startDateTime = data.formatDateForApi(lastSync);
+    } else {
+  <%# Если нет, берём последний месяц %>
+  var lastMonth = new Date();
+  lastMonth.setMonth(lastMonth.getMonth() - 1);
+  startDateTime = data.formatDateForApi(lastMonth);
+    }
+    
+  <%# Конечная дата - сегодня %>
+    endDateTime = data.formatDateForApi(new Date());
+    console.log('[init-statement] Автоматически определены даты:', startDateTime, endDateTime);
+  } catch (error) {
+    return response.json(500, {
+      success: false,
+      error: 'Date Calculation Error',
+      message: 'Ошибка при определении дат: ' + error.message,
+      details: error
+    });
+  }
+}
+
+<%# Валидация формата дат (YYYY-MM-DD) %>
+var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+if (!dateRegex.test(startDateTime) || !dateRegex.test(endDateTime)) {
+  return response.json(400, {
+    success: false,
+    error: 'Bad Request',
+    message: 'Неверный формат даты. Используйте YYYY-MM-DD'
+  });
+}
+
+console.log('[init-statement] accountId:', requestData.accountId || (data && data.tochkaConfig ? data.tochkaConfig.account_id : null));
+console.log('[init-statement] tochkaConfig:', JSON.stringify(data && data.tochkaConfig ? data.tochkaConfig : {}, null, 2));
+
+<%# Использовать accountId из запроса или из конфига %>
+var accountId = requestData.accountId ? requestData.accountId : (data && data.tochkaConfig ? data.tochkaConfig.account_id : null);
+
+<%# Подготовить тело запроса к API Точка %>
+var apiBody = {
+  Data: {
+    Statement: {
+      accountId: accountId,
+      startDateTime: startDateTime,
+      endDateTime: endDateTime
+    }
+  }
+};
+
+console.log('[init-statement] apiBody:', JSON.stringify(apiBody, null, 2));
+
+<%# Выполнить запрос к API Точка %>
+var result = await data.makeApiRequest(data.ENDPOINTS.STATEMENTS, {
+  method: 'POST',
+  body: apiBody
+});
+
+console.log('[init-statement] API result:', JSON.stringify(result, null, 2));
+
+<%# Проверка результата %>
+if (!result.success) {
+  return response.json(result.statusCode ? result.statusCode : 500, {
+    success: false,
+    error: result.error,
+    message: result.message,
+    details: result.details
+  });
+}
+
+var statementData = {};
+if (result.data && result.data.Data && result.data.Data.Statement) {
+  statementData = result.data.Data.Statement;
+}
+console.log('[init-statement] statementData:', JSON.stringify(statementData, null, 2));
+
+<%# Извлечь данные выписки из ответа %>
+<%# statementData уже определён выше %>
+
+<%# Обновить дату последней синхронизации %>
+try {
+  var syncRes = data.updateLastSyncDate();
+  console.log('[init-statement] updateLastSyncDate result:', syncRes);
+} catch (e) {
+  console.error('[init-statement] updateLastSyncDate error:', e);
+}
+
+<%# Вернуть успешный результат %>
+return response.json(200, {
+  success: true,
+  data: {
+    statementId: statementData.statementId,
+    status: statementData.status,
+    accountId: statementData.accountId,
+    startDateTime: statementData.startDateTime,
+    endDateTime: statementData.endDateTime,
+    creationDateTime: statementData.creationDateTime
+  },
+  message: 'Выписка инициирована. Используйте statementId для получения данных.'
+});
+%>
+
+
+

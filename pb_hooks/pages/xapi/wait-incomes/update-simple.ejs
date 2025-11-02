@@ -1,0 +1,50 @@
+<%
+try {
+    console.log('=== UPDATE WAIT INCOME ENDPOINT ===');
+    
+    // Получаем параметры из URL
+    const url = new URL($apis.requestInfo().url);
+    const recordId = url.searchParams.get('id');
+    console.log('Получен ID записи:', recordId);
+    
+    if (!recordId) {
+        throw new Error('ID записи не указан');
+    }
+    
+    // Получаем данные из тела запроса
+    const requestBody = $apis.requestInfo().data;
+    console.log('Данные запроса:', JSON.stringify(requestBody));
+    
+    // Получаем запись для обновления
+    const record = $app.dao().findRecordById('wait_incomes', recordId);
+    console.log('Найдена запись:', record.id, record.get('name'));
+    
+    // Обновляем поля
+    record.set('name', requestBody.name);
+    record.set('sum', requestBody.sum);
+    record.set('accural_month', requestBody.accrual_month);
+    
+    // Сохраняем изменения
+    $app.dao().saveRecord(record);
+    console.log('Запись успешно обновлена');
+    
+    // Возвращаем успешный ответ
+    $apis.json(200, {
+        success: true,
+        message: 'Запись успешно обновлена',
+        record: {
+            id: record.id,
+            name: record.get('name'),
+            sum: record.get('sum'),
+            accural_month: record.get('accural_month')
+        }
+    });
+
+} catch (error) {
+    console.log('Ошибка при обновлении:', error.message);
+    $apis.json(500, {
+        success: false,
+        message: 'Ошибка при обновлении: ' + error.message
+    });
+}
+%>

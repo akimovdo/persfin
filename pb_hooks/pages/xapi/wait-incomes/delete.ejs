@@ -1,0 +1,40 @@
+<%
+/**
+ * API эндпоинт для удаления записи wait_incomes
+ * DELETE /xapi/wait-incomes/delete?id=xxx
+ */
+meta('layout', false);
+
+if (request.method !== 'DELETE' && request.method !== 'POST') {
+  return response.json(405, { 
+    success: false, 
+    error: 'Method not allowed' 
+  });
+}
+
+try {
+  const recordId = url.query.id || params.id;
+  
+  if (!recordId) {
+    return response.json(400, {
+      success: false,
+      error: 'ID записи не указан'
+    });
+  }
+
+  // Удаляем запись
+  $app.delete($app.findRecordById('wait_incomes', recordId));
+
+  return response.json(200, {
+    success: true,
+    message: 'Запись успешно удалена'
+  });
+
+} catch (error) {
+  log('[wait-incomes/delete] Error:', error);
+  return response.json(400, {
+    success: false,
+    error: error.message || 'Ошибка удаления записи'
+  });
+}
+%>

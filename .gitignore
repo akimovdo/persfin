@@ -1,0 +1,34 @@
+# PocketBase
+pb_data/
+pocketbase
+std.log
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS / Editors
+.DS_Store
+.vscode/
+.idea/
+
+# Build / Coverage
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+
+# Tailwind output (optional)
+# Uncomment if you build CSS in CI and don't commit it
+# pb_hooks/pages/app.css

@@ -1,0 +1,34 @@
+<%
+try {
+    console.log('=== DELETE WAIT INCOME ENDPOINT ===');
+    
+    // Получаем параметры из URL
+    const url = new URL($apis.requestInfo().url);
+    const recordId = url.searchParams.get('id');
+    console.log('Получен ID записи для удаления:', recordId);
+    
+    if (!recordId) {
+        throw new Error('ID записи не указан');
+    }
+    
+    // Получаем и удаляем запись
+    const record = $app.dao().findRecordById('wait_incomes', recordId);
+    console.log('Найдена запись для удаления:', record.id, record.get('name'));
+    
+    $app.dao().deleteRecord(record);
+    console.log('Запись успешно удалена');
+    
+    // Возвращаем успешный ответ
+    $apis.json(200, {
+        success: true,
+        message: 'Запись успешно удалена'
+    });
+
+} catch (error) {
+    console.log('Ошибка при удалении:', error.message);
+    $apis.json(500, {
+        success: false,
+        message: 'Ошибка при удалении: ' + error.message
+    });
+}
+%>
