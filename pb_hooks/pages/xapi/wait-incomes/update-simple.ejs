@@ -1,23 +1,38 @@
 <%
+meta('layout', false);
+
+if (request.method !== 'PATCH') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод PATCH'
+    });
+}
+
 try {
-    console.log('=== UPDATE WAIT INCOME ENDPOINT ===');
-    
     // Получаем параметры из URL
-    const url = new URL($apis.requestInfo().url);
-    const recordId = url.searchParams.get('id');
-    console.log('Получен ID записи:', recordId);
+    const query = url(request.url).query || {};
+    const recordId = query.id;
     
     if (!recordId) {
         throw new Error('ID записи не указан');
     }
     
     // Получаем данные из тела запроса
-    const requestBody = $apis.requestInfo().data;
-    console.log('Данные запроса:', JSON.stringify(requestBody));
+    const bodyRaw = request.body();
+    let requestBody;
+
+    if (typeof bodyRaw === 'string') {
+        try {
+            requestBody = JSON.parse(bodyRaw);
+        } catch (parseError) {
+            throw new Error('Некорректный JSON в теле запроса');
+        }
+    } else {
+        requestBody = bodyRaw || {};
+    }
     
     // Получаем запись для обновления
     const record = $app.dao().findRecordById('wait_incomes', recordId);
-    console.log('Найдена запись:', record.id, record.get('name'));
     
     // Обновляем поля
     record.set('name', requestBody.name);
@@ -26,10 +41,8 @@ try {
     
     // Сохраняем изменения
     $app.dao().saveRecord(record);
-    console.log('Запись успешно обновлена');
     
-    // Возвращаем успешный ответ
-    $apis.json(200, {
+    return response.json(200, {
         success: true,
         message: 'Запись успешно обновлена',
         record: {
@@ -41,8 +54,7 @@ try {
     });
 
 } catch (error) {
-    console.log('Ошибка при обновлении:', error.message);
-    $apis.json(500, {
+    return response.json(500, {
         success: false,
         message: 'Ошибка при обновлении: ' + error.message
     });

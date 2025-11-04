@@ -4,6 +4,8 @@
  * GET /xapi/tochka/auto-sync
  */
 
+meta('layout', false);
+
 if ($req.method !== 'GET') {
   response.status = 405
   response.json({

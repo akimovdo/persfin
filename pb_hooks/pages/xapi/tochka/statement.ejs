@@ -1,4 +1,7 @@
 <%
+meta('layout', false);
+
+try {
 /**
  * GET /xapi/tochka/statement?statementId=xxx&accountId=yyy
  * Получение конкретной выписки по ID
@@ -96,4 +99,11 @@ return response.json(200, {
       ? 'Выписка обрабатывается, повторите запрос позже' 
       : 'Выписка создана, ожидает обработки'
 });
+  } catch (error) {
+  return response.json(500, {
+    success: false,
+    error: 'Internal Server Error',
+    message: error && error.message ? error.message : String(error)
+  });
+}
 %>

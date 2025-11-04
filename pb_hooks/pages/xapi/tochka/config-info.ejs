@@ -4,6 +4,8 @@
  * Получение информации о текущей конфигурации (для отладки)
  */
 
+meta('layout', false);
+
 if (request.method !== 'GET') {
   return response.json(405, { 
     success: false,

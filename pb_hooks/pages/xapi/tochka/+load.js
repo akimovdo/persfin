@@ -14,7 +14,7 @@ module.exports = function (api) {
    * @param {object} options.headers - Дополнительные заголовки
    * @returns {object} Ответ от API или объект с ошибкой
    */
-  const makeApiRequest = async (endpoint, options = {}) => {
+  const makeApiRequest = (endpoint, options = {}) => {
     const url = `${TOCHKA_API_BASE}${endpoint}`
     
     const headers = {
@@ -69,9 +69,127 @@ module.exports = function (api) {
       $app.save(config)
       return true
     } catch (error) {
-      console.error('Ошибка при обновлении last_sync_date:', error)
       return false
     }
+  }
+
+  /**
+   * Обновить баланс по окончанию периода выписки
+   * @param {number|string} balance
+   */
+  const updateEndDateBalance = (balance) => {
+    try {
+      const config = $app.findRecordById('tochka_config', data.tochkaConfig.id)
+      config.set('endDateBalance', balance)
+      config.set('last_sync_date', new Date().toISOString())
+      $app.save(config)
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+
+  /**
+   * Сохранить транзакции выписки в коллекцию payments
+   * @param {Array<any>} transactions
+   */
+  const saveTransactions = (transactions) => {
+    const result = {
+      saved: 0,
+      skipped: 0,
+      errors: []
+    }
+
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      return result
+    }
+
+    const toNumber = (value) => {
+      if (value === null || value === undefined) return 0
+      if (typeof value === 'number') return value
+      const str = String(value).replace(',', '.').replace(/[^0-9.\-]/g, '')
+      const parsed = Number(str)
+      return Number.isFinite(parsed) ? parsed : 0
+    }
+
+    const toIsoDate = (value) => {
+      if (!value) return new Date().toISOString()
+      const date = value instanceof Date ? value : new Date(value)
+      if (Number.isNaN(date.getTime())) return new Date().toISOString()
+      return date.toISOString()
+    }
+
+    const escapeFilterValue = (val) => String(val).replace(/"/g, '\\"')
+
+    for (let i = 0; i < transactions.length; i++) {
+      const tx = transactions[i] || {}
+
+      try {
+        const transactionId = tx.transactionId || tx.TransactionId || tx.entryReference
+
+        if (!transactionId) {
+          result.errors.push({ index: i, error: 'transactionId отсутствует' })
+          continue
+        }
+
+        const amount = tx.transactionAmount && typeof tx.transactionAmount.amount !== 'undefined'
+          ? toNumber(tx.transactionAmount.amount)
+          : toNumber(tx.amount)
+
+        const creditDebitIndicator = tx.creditDebitIndicator || tx.creditDebit || ''
+        const bookingDate = tx.bookingDate || tx.documentProcessDate || tx.valueDate || tx.date || null
+        const payer = tx.debtorName || tx.creditorName || tx.counterpartyName || ''
+
+        let description = ''
+        if (typeof tx.remittanceInformationUnstructured === 'string') {
+          description = tx.remittanceInformationUnstructured
+        } else if (Array.isArray(tx.remittanceInformationUnstructured) && tx.remittanceInformationUnstructured.length > 0) {
+          description = tx.remittanceInformationUnstructured.join('; ')
+        } else if (tx.remittanceInformation && typeof tx.remittanceInformation === 'object') {
+          const unstructured = tx.remittanceInformation.unstructured
+          if (Array.isArray(unstructured) && unstructured.length > 0) {
+            description = unstructured.join('; ')
+          } else if (typeof unstructured === 'string') {
+            description = unstructured
+          }
+        } else if (typeof tx.description === 'string') {
+          description = tx.description
+        }
+
+        const filterValue = escapeFilterValue(transactionId)
+        let existing = null
+        try {
+          existing = $app.findFirstRecordByFilter('payments', `transactionId = "${filterValue}"`)
+        } catch (findError) {
+          existing = null
+        }
+
+  const record = existing ? existing : new Record($app.findCollectionByNameOrId('payments'))
+
+        record.set('transactionId', transactionId)
+        record.set('date', toIsoDate(bookingDate))
+        record.set('creditDebitIndicator', creditDebitIndicator)
+        record.set('payer', payer)
+  record.set('sum', amount)
+        record.set('description', description)
+        record.set('raw', tx)
+
+        if (!existing) {
+          record.set('accural', '')
+          record.set('wait_income', '')
+          record.set('ignore', false)
+        }
+
+  $app.save(record)
+  result.saved += 1
+      } catch (error) {
+        result.errors.push({ index: i, error: error.message || String(error) })
+      }
+    }
+
+  const processed = result.saved + result.errors.length
+  result.skipped = Math.max(0, transactions.length - processed)
+    return result
   }
 
   /**
@@ -97,6 +215,8 @@ module.exports = function (api) {
     TOCHKA_API_BASE,
     makeApiRequest,
     updateLastSyncDate,
+    updateEndDateBalance,
+    saveTransactions,
     formatDateForApi,
     ENDPOINTS
   }
