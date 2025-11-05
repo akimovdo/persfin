@@ -49,7 +49,6 @@ if (!startDateTime || !endDateTime) {
     // Конечная дата - сегодня
     endDateTime = data.formatDateForApi(new Date());
   } catch (error) {
-  } catch (error) {
     return response.json(500, {
       success: false,
       error: 'Date Calculation Error',

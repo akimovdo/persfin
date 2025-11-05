@@ -1,0 +1,64 @@
+<%
+/**
+ * GET /xapi/debug/check-payments-simple
+ * Простая проверка первого платежа
+ */
+
+meta('layout', false);
+
+try {
+  const payments = $app.findRecordsByFilter('payments', 'raw != ""', '-created', 1, 0);
+  
+  if (payments.length === 0) {
+    return response.json(404, {
+      success: false,
+      message: 'Нет платежей с RAW данными'
+    });
+  }
+  
+  const payment = payments[0];
+  
+  const raw = payment.get('raw');
+  const sum = payment.get('sum');
+  
+  // Проверяем тип raw
+  const rawType = typeof raw;
+  const isObject = raw !== null && typeof raw === 'object';
+  const isString = typeof raw === 'string';
+  
+  let parsedRaw = raw;
+  if (isString) {
+    try {
+      parsedRaw = JSON.parse(raw);
+    } catch (e) {
+      parsedRaw = { error: 'Failed to parse', raw: raw };
+    }
+  }
+  
+  return response.json(200, {
+    success: true,
+    data: {
+      id: payment.id,
+      transactionId: payment.getString('transactionId'),
+      sum: sum,
+      sumType: typeof sum,
+      rawType: rawType,
+      isObject: isObject,
+      isString: isString,
+      rawDirect: raw,
+      hasAmount: raw && 'Amount' in raw,
+      Amount_direct: raw && raw['Amount'],
+      Amount_amount: raw && raw['Amount'] && raw['Amount']['amount'],
+      parsedAmount: parsedRaw && parsedRaw['Amount'] && parsedRaw['Amount']['amount'],
+      rawKeys: raw ? Object.keys(raw) : []
+    }
+  });
+  
+} catch (error) {
+  return response.json(500, {
+    success: false,
+    error: error.message,
+    stack: error.stack
+  });
+}
+%>

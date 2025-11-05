@@ -562,9 +562,11 @@ try {
 							</button>
 							<p class="text-xs text-base-content/60 text-center">
 								<% if (lastSyncDate) { %>
-									Будет загружена выписка с <%= formatDate(lastSyncDate) %> по текущую дату
+									Будет загружена выписка с <%= formatDate(lastSyncDate) %> по текущую дату.<br>
+									<span class="text-base-content/50">Обработка обычно занимает 5-15 секунд</span>
 								<% } else { %>
-									Выберите период для загрузки выписки
+									Будет загружена выписка за последний месяц.<br>
+									<span class="text-base-content/50">Обработка обычно занимает 5-15 секунд</span>
 								<% } %>
 							</p>
 						</div>
@@ -1847,6 +1849,8 @@ window.loadBankStatements = async function() {
 	resultDiv.style.display = 'none';
 	resultDiv.innerHTML = '';
 	
+	let statementId = null;
+	
 	try {
 		// Инициируем выписку (даты определяются автоматически на бэкенде)
 		const initResponse = await fetch('/xapi/tochka/init-statement', {
@@ -1861,51 +1865,153 @@ window.loadBankStatements = async function() {
 			throw new Error(initData.message || 'Ошибка инициализации выписки');
 		}
 		
-		const statementId = initData.data.statementId;
+		statementId = initData.data.statementId;
 		
-		// Ждём 3 секунды для обработки
-		await new Promise(resolve => setTimeout(resolve, 3000));
-		
-		// Получаем выписку
-		const statementResponse = await fetch(`/xapi/tochka/statement?statementId=${statementId}`);
-		const statementData = await statementResponse.json();
-		
-		if (!statementData.success) {
-			throw new Error(statementData.message || 'Ошибка получения выписки');
-		}
-		
-		// Показываем результат
-		resultDiv.style.display = 'block';
-		
-		if (statementData.status === 'Ready' && statementData.saveResult) {
-			const { saved, skipped, errors } = statementData.saveResult;
+		// Функция для проверки статуса выписки с повторными попытками
+		const checkStatementStatus = async (attemptNumber = 1, maxAttempts = 20) => {
+			// Показываем прогресс
+			resultDiv.style.display = 'block';
 			resultDiv.innerHTML = `
-				<div class="alert alert-success">
-					<i class="fas fa-check-circle"></i>
+				<div class="alert alert-info">
+					<i class="fas fa-spinner fa-spin"></i>
 					<div>
-						<p class="font-semibold">Выписка загружена успешно!</p>
-						<p class="text-sm">Сохранено: ${saved}, Пропущено: ${skipped}, Ошибок: ${errors.length}</p>
+						<p class="font-semibold">Обработка выписки...</p>
+						<p class="text-sm">Попытка ${attemptNumber} из ${maxAttempts}</p>
+						<p class="text-xs text-base-content/70 mt-1">Обычно занимает 5-15 секунд</p>
 					</div>
 				</div>
 			`;
 			
-			// Перезагружаем страницу через 2 секунды для обновления баланса
-			setTimeout(() => window.location.reload(), 2000);
-		} else {
-			resultDiv.innerHTML = `
-				<div class="alert alert-warning">
-					<i class="fas fa-clock"></i>
-					<span>Выписка в обработке. Статус: ${statementData.status}</span>
-				</div>
-			`;
-		}
+			// Ждём перед запросом (увеличивающаяся задержка)
+			const delay = Math.min(3000 + (attemptNumber - 1) * 1000, 10000);
+			await new Promise(resolve => setTimeout(resolve, delay));
+			
+			// Получаем выписку
+			const statementResponse = await fetch(`/xapi/tochka/statement?statementId=${statementId}`);
+			const statementData = await statementResponse.json();
+			
+			if (!statementData.success) {
+				throw new Error(statementData.message || 'Ошибка получения выписки');
+			}
+			
+			const status = statementData.status;
+			
+			// Если выписка готова - сохраняем
+			if (status === 'Ready') {
+				if (statementData.saveResult) {
+					const { saved, skipped, skippedInternal, errors } = statementData.saveResult;
+					
+					// Формируем HTML с детальной информацией об ошибках
+					let errorsHtml = '';
+					if (errors.length > 0) {
+						const warnings = errors.filter(e => e.warning);
+						const realErrors = errors.filter(e => !e.warning);
+						
+						if (warnings.length > 0) {
+							errorsHtml += `
+								<details class="collapse collapse-arrow bg-warning/10 mt-2">
+									<summary class="collapse-title text-sm font-medium">
+										<i class="fas fa-exclamation-triangle text-warning"></i>
+										Предупреждения (${warnings.length})
+									</summary>
+									<div class="collapse-content">
+										<div class="text-xs space-y-2 mt-2">
+											${warnings.map((err, idx) => `
+												<div class="p-2 bg-base-100 rounded">
+													<p><strong>#${err.index || idx}:</strong> ${err.warning || err.error}</p>
+													${err.transactionId ? `<p class="text-base-content/60">ID: ${err.transactionId}</p>` : ''}
+													${err.availableFields ? `<p class="text-base-content/50 text-xs mt-1">Доступные поля: ${err.availableFields}</p>` : ''}
+												</div>
+											`).join('')}
+										</div>
+									</div>
+								</details>
+							`;
+						}
+						
+						if (realErrors.length > 0) {
+							errorsHtml += `
+								<details class="collapse collapse-arrow bg-error/10 mt-2">
+									<summary class="collapse-title text-sm font-medium">
+										<i class="fas fa-times-circle text-error"></i>
+										Ошибки (${realErrors.length})
+									</summary>
+									<div class="collapse-content">
+										<div class="text-xs space-y-2 mt-2">
+											${realErrors.map((err, idx) => `
+												<div class="p-2 bg-base-100 rounded">
+													<p><strong>#${err.index || idx}:</strong> ${err.error}</p>
+													${err.transactionId ? `<p class="text-base-content/60">ID: ${err.transactionId}</p>` : ''}
+												</div>
+											`).join('')}
+										</div>
+									</div>
+								</details>
+							`;
+						}
+					}
+					
+					// Информация о пропущенных внутренних переводах
+					let internalTransfersInfo = '';
+					if (skippedInternal > 0) {
+						internalTransfersInfo = `
+							<div class="alert alert-info text-xs mt-2">
+								<i class="fas fa-info-circle"></i>
+								<span>Пропущено внутренних переводов (собственные средства): ${skippedInternal}</span>
+							</div>
+						`;
+					}
+					
+					resultDiv.innerHTML = `
+						<div class="alert alert-success">
+							<i class="fas fa-check-circle"></i>
+							<div class="w-full">
+								<p class="font-semibold">Выписка загружена успешно!</p>
+								<p class="text-sm">
+									Сохранено: ${saved}, 
+									Пропущено дубликатов: ${skipped}, 
+									${skippedInternal > 0 ? `Игнорировано внутренних: ${skippedInternal}, ` : ''}
+									Проблем: ${errors.length}
+								</p>
+								${internalTransfersInfo}
+								${errorsHtml}
+							</div>
+						</div>
+					`;
+					
+					// Перезагружаем страницу через 3 секунды для обновления баланса
+					setTimeout(() => window.location.reload(), 3000);
+				} else {
+					throw new Error('Выписка готова, но данные не были сохранены');
+				}
+			} 
+			// Если ещё обрабатывается - повторяем
+			else if (status === 'Created' || status === 'Processing') {
+				if (attemptNumber < maxAttempts) {
+					return await checkStatementStatus(attemptNumber + 1, maxAttempts);
+				} else {
+					throw new Error(`Превышено время ожидания. Выписка всё ещё в статусе: ${status}. Попробуйте позже.`);
+				}
+			}
+			// Неизвестный статус
+			else {
+				throw new Error(`Неожиданный статус выписки: ${status}`);
+			}
+		};
+		
+		// Запускаем проверку статуса
+		await checkStatementStatus();
 		
 	} catch (error) {
 		resultDiv.style.display = 'block';
 		resultDiv.innerHTML = `
 			<div class="alert alert-error">
 				<i class="fas fa-exclamation-circle"></i>
-				<span>${error.message}</span>
+				<div>
+					<p class="font-semibold">Ошибка загрузки выписки</p>
+					<p class="text-sm">${error.message}</p>
+					${statementId ? `<p class="text-xs text-base-content/70 mt-1">ID выписки: ${statementId}</p>` : ''}
+				</div>
 			</div>
 		`;
 	} finally {
@@ -2344,7 +2450,8 @@ window.selectItem = function(itemId, itemName, type, itemNumber) {
 		if (type === 'income') {
 			label.textContent = itemName;
 		} else {
-			label.textContent = `${itemName} (${itemNumber})`;
+			// Показываем номер только если он не пустой
+			label.textContent = itemNumber ? `${itemName} (${itemNumber})` : itemName;
 		}
 		label.classList.remove('text-base-content/70');
 		label.classList.add('text-base-content', 'font-medium');

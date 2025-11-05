@@ -1,0 +1,72 @@
+<%
+/**
+ * GET /xapi/debug/check-raw-payments
+ * Отладочный endpoint для проверки структуры RAW данных в платежах
+ */
+
+meta('layout', false);
+
+try {
+  // Получаем последние 5 платежей с RAW данными
+  const payments = $app.findRecordsByFilter('payments', 'raw != ""', '-created', 5, 0);
+  
+  const result = {
+    count: payments.length,
+    records: []
+  };
+  
+  for (let i = 0; i < payments.length; i++) {
+    const payment = payments[i];
+    let raw = payment.get('raw');
+    
+    // Если raw - строка, парсим её
+    if (typeof raw === 'string') {
+      try {
+        raw = JSON.parse(raw);
+      } catch (e) {
+        raw = null;
+      }
+    }
+    
+    const record = {
+      id: payment.id,
+      transactionId: payment.getString('transactionId'),
+      sum: payment.get('sum'),
+      date: payment.getString('date'),
+      payer: payment.getString('payer'),
+      raw: raw,
+      rawType: typeof raw,
+      rawKeys: raw && typeof raw === 'object' ? Object.keys(raw).filter(k => isNaN(k)).slice(0, 20) : [],
+      amountAnalysis: {}
+    };
+    
+    // Анализ различных путей к сумме
+    if (raw && typeof raw === 'object') {
+      record.amountAnalysis = {
+        'Amount.amount': raw.Amount?.amount,
+        'Amount.amountNat': raw.Amount?.amountNat,
+        'Amount (full)': raw.Amount,
+        'transactionAmount.amount': raw.transactionAmount?.amount,
+        'amount': raw.amount,
+        'sum': raw.sum
+      };
+    }
+    
+    result.records.push(record);
+  }
+  
+  return response.json(200, {
+    success: true,
+    data: result,
+    message: `Найдено ${payments.length} платежей с RAW данными`
+  });
+  
+} catch (error) {
+  return response.json(500, {
+    success: false,
+    error: 'Internal Server Error',
+    message: error.message || String(error),
+    stack: error.stack
+  });
+}
+%>

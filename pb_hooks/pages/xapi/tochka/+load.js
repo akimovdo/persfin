@@ -97,6 +97,7 @@ module.exports = function (api) {
     const result = {
       saved: 0,
       skipped: 0,
+      skippedInternal: 0,
       errors: []
     }
 
@@ -120,6 +121,41 @@ module.exports = function (api) {
     }
 
     const escapeFilterValue = (val) => String(val).replace(/"/g, '\\"')
+    
+    /**
+     * Проверка: является ли транзакция внутренним переводом (перевод собственных средств)
+     * @param {object} tx - транзакция
+     * @returns {boolean}
+     */
+    const isInternalTransfer = (tx) => {
+      // Признак 1: Описание содержит ключевые слова
+      const description = tx.description || tx.remittanceInformationUnstructured || ''
+      if (description.includes('Перевод собственных средств')) {
+        return true
+      }
+      
+      // Признак 2: ИНН плательщика и получателя совпадают (и не пустые)
+      const debtorINN = tx.DebtorParty?.inn || tx.debtorParty?.inn
+      const creditorINN = tx.CreditorParty?.inn || tx.creditorParty?.inn
+      
+      if (debtorINN && creditorINN && debtorINN === creditorINN) {
+        return true
+      }
+      
+      // Признак 3: Счета плательщика и получателя совпадают (и в том же банке)
+      const debtorAccount = tx.DebtorAccount?.identification || tx.debtorAccount?.identification
+      const creditorAccount = tx.CreditorAccount?.identification || tx.creditorAccount?.identification
+      const debtorBIK = tx.DebtorAgent?.identification || tx.debtorAgent?.identification
+      const creditorBIK = tx.CreditorAgent?.identification || tx.creditorAgent?.identification
+      
+      if (debtorAccount && creditorAccount && 
+          debtorAccount === creditorAccount && 
+          debtorBIK === creditorBIK) {
+        return true
+      }
+      
+      return false
+    }
 
     for (let i = 0; i < transactions.length; i++) {
       const tx = transactions[i] || {}
@@ -131,10 +167,53 @@ module.exports = function (api) {
           result.errors.push({ index: i, error: 'transactionId отсутствует' })
           continue
         }
+        
+        // Проверяем, не является ли это внутренним переводом
+        if (isInternalTransfer(tx)) {
+          result.skippedInternal += 1
+          continue
+        }
 
-        const amount = tx.transactionAmount && typeof tx.transactionAmount.amount !== 'undefined'
-          ? toNumber(tx.transactionAmount.amount)
-          : toNumber(tx.amount)
+        // Улучшенное извлечение суммы с множественными попытками
+        let amount = 0
+        
+        // Попытка 1: Amount.amount (с заглавной - основной формат API Точка)
+        if (tx.Amount && typeof tx.Amount.amount !== 'undefined') {
+          amount = toNumber(tx.Amount.amount)
+        }
+        // Попытка 2: transactionAmount.amount
+        else if (tx.transactionAmount && typeof tx.transactionAmount.amount !== 'undefined') {
+          amount = toNumber(tx.transactionAmount.amount)
+        }
+        // Попытка 3: transactionAmount.Amount (с заглавной)
+        else if (tx.transactionAmount && typeof tx.transactionAmount.Amount !== 'undefined') {
+          amount = toNumber(tx.transactionAmount.Amount)
+        }
+        // Попытка 4: amount напрямую
+        else if (typeof tx.amount !== 'undefined') {
+          amount = toNumber(tx.amount)
+        }
+        // Попытка 5: Amount напрямую (если это число)
+        else if (typeof tx.Amount === 'number') {
+          amount = toNumber(tx.Amount)
+        }
+        // Попытка 6: sum / Sum
+        else if (typeof tx.sum !== 'undefined') {
+          amount = toNumber(tx.sum)
+        }
+        else if (typeof tx.Sum !== 'undefined') {
+          amount = toNumber(tx.Sum)
+        }
+        
+        // Если сумма всё равно 0, логируем предупреждение
+        if (amount === 0) {
+          result.errors.push({ 
+            index: i, 
+            transactionId: transactionId,
+            warning: 'Сумма транзакции = 0 или не найдена',
+            availableFields: Object.keys(tx).join(', ')
+          })
+        }
 
         const creditDebitIndicator = tx.creditDebitIndicator || tx.creditDebit || ''
         const bookingDate = tx.bookingDate || tx.documentProcessDate || tx.valueDate || tx.date || null
@@ -172,7 +251,8 @@ module.exports = function (api) {
         record.set('payer', payer)
   record.set('sum', amount)
         record.set('description', description)
-        record.set('raw', tx)
+        // Сохраняем raw как строку JSON для совместимости
+        record.set('raw', JSON.stringify(tx))
 
         if (!existing) {
           record.set('accural', '')

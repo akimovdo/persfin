@@ -1,0 +1,60 @@
+<%
+/**
+ * POST /xapi/payments/mark-internal-transfers
+ * Помечает существующие внутренние переводы как игнорируемые
+ */
+
+meta('layout', false);
+
+if (request.method !== 'POST') {
+  return response.json(405, { 
+    success: false,
+    message: 'Используйте POST метод'
+  });
+}
+
+try {
+  // Находим все платежи с описанием "Перевод собственных средств"
+  const payments = $app.findRecordsByFilter(
+    'payments', 
+    'description ~ "Перевод собственных средств" && ignore = false',
+    '',
+    0,
+    0
+  );
+  
+  let updated = 0;
+  const errors = [];
+  
+  for (let i = 0; i < payments.length; i++) {
+    try {
+      const payment = payments[i];
+      payment.set('ignore', true);
+      $app.save(payment);
+      updated++;
+    } catch (error) {
+      errors.push({
+        id: payments[i].id,
+        error: error.message || String(error)
+      });
+    }
+  }
+  
+  return response.json(200, {
+    success: true,
+    data: {
+      found: payments.length,
+      updated: updated,
+      errors: errors
+    },
+    message: `Помечено ${updated} из ${payments.length} внутренних переводов как игнорируемые`
+  });
+  
+} catch (error) {
+  return response.json(500, {
+    success: false,
+    error: error.message || String(error),
+    stack: error.stack
+  });
+}
+%>
