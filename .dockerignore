@@ -1,0 +1,13 @@
+node_modules
+pb_data
+pocketbase
+std.log
+.git
+.gitignore
+.DS_Store
+.vscode
+.idea
+*.log
+README.md
+CHANGELOG.md
+tailwind.config.js
