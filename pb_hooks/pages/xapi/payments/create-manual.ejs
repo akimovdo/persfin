@@ -1,0 +1,139 @@
+<%
+/**
+ * POST /xapi/payments/create-manual
+ * Создает ручной платеж с загрузкой чеков
+ */
+
+meta('layout', false);
+
+if (request.method !== 'POST') {
+  return response.json(405, { 
+    success: false,
+    message: 'Используйте POST метод'
+  });
+}
+
+try {
+  // Получаем данные из формы
+  const formData = request.formData();
+
+  const getField = (data, key) => {
+    if (!data) {
+      return undefined;
+    }
+    if (typeof data.get === 'function') {
+      return data.get(key);
+    }
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      return data[key];
+    }
+    return undefined;
+  };
+
+  const getAllField = (data, key) => {
+    if (!data) {
+      return [];
+    }
+    if (typeof data.getAll === 'function') {
+      return data.getAll(key) || [];
+    }
+    const value = getField(data, key);
+    if (value === undefined || value === null) {
+      return [];
+    }
+    return Array.isArray(value) ? value : [value];
+  };
+
+  const accrualId = getField(formData, 'accural');
+  const sum = parseFloat(getField(formData, 'sum'));
+  const date = getField(formData, 'date');
+  const description = getField(formData, 'description') || '';
+  
+  // Валидация обязательных полей
+  if (!accrualId) {
+    return response.json(400, {
+      success: false,
+      message: 'ID начисления обязателен'
+    });
+  }
+  
+  if (!sum || sum <= 0) {
+    return response.json(400, {
+      success: false,
+      message: 'Сумма платежа должна быть больше нуля'
+    });
+  }
+  
+  if (!date) {
+    return response.json(400, {
+      success: false,
+      message: 'Дата платежа обязательна'
+    });
+  }
+  
+  // Проверяем, существует ли начисление
+  let accrual = null;
+  try {
+    accrual = $app.findRecordById('accruals', accrualId);
+  } catch (error) {
+    return response.json(404, {
+      success: false,
+      message: 'Начисление не найдено'
+    });
+  }
+  
+  // Создаем коллекцию для нового платежа
+  const paymentsCollection = $app.findCollectionByNameOrId('payments');
+  const paymentRecord = new Record(paymentsCollection);
+  
+  // Формируем описание
+  const fullDescription = description || 'Ручной платеж';
+  
+  // Устанавливаем поля платежа
+  paymentRecord.set('accural', accrualId);
+  paymentRecord.set('sum', sum);
+  paymentRecord.set('date', date);
+  paymentRecord.set('description', fullDescription);
+  paymentRecord.set('ignore', false);
+  
+  // Обрабатываем загруженные файлы (чеки)
+  const receiptFiles = getAllField(formData, 'receipt');
+  if (receiptFiles && receiptFiles.length > 0) {
+    // Фильтруем пустые файлы
+    const validFiles = receiptFiles.filter(file => file && file.size > 0);
+    
+    if (validFiles.length > 0) {
+      // Устанавливаем файлы в поле receipt
+      paymentRecord.set('receipt', validFiles);
+    }
+  }
+  
+  // Сохраняем запись
+  $app.save(paymentRecord);
+  
+  // Считаем количество загруженных файлов
+  const receiptsCount = (receiptFiles && receiptFiles.length > 0) 
+    ? receiptFiles.filter(file => file && file.size > 0).length 
+    : 0;
+  
+  return response.json(200, {
+    success: true,
+    data: {
+      id: paymentRecord.id,
+      sum: sum,
+      date: date,
+      accrualId: accrualId,
+      description: fullDescription,
+      receiptsCount: receiptsCount
+    },
+    message: 'Платеж успешно создан'
+  });
+  
+} catch (error) {
+  return response.json(500, {
+    success: false,
+    error: error.message || String(error),
+    stack: error.stack
+  });
+}
+%>

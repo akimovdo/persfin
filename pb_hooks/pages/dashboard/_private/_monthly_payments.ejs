@@ -1,0 +1,676 @@
+<%
+// Загружаем ежемесячные платежи
+let monthlyPayments = [];
+let partners = [];
+let costItems = [];
+let loadError = null;
+
+try {
+	// Загружаем справочники
+	const partnersRecords = $app.findRecordsByFilter('partners', '', 'name', 0, 0);
+	const costItemsRecords = $app.findRecordsByFilter('cost_items', '', 'name', 0, 0);
+	
+	partners = [];
+	for (let i = 0; i < partnersRecords.length; i++) {
+		partners.push({
+			id: partnersRecords[i].id,
+			name: partnersRecords[i].get('name')
+		});
+	}
+	
+	costItems = [];
+	for (let i = 0; i < costItemsRecords.length; i++) {
+		costItems.push({
+			id: costItemsRecords[i].id,
+			name: costItemsRecords[i].get('name')
+		});
+	}
+	
+	// Загружаем ежемесячные платежи
+	const records = $app.findRecordsByFilter('monthly_payments', '', '-created', 0, 0);
+	
+	for (let i = 0; i < records.length; i++) {
+		const record = records[i];
+		
+		monthlyPayments.push({
+			id: record.getString('id'),
+			name: record.getString('name'),
+			number: record.getString('number'),
+			partnerId: record.getString('partner'),
+			partnerName: '', // Заполним ниже
+			costItemId: record.getString('cost_item'),
+			costItemName: '', // Заполним ниже
+			sum: parseFloat(record.get('sum') || 0),
+			repaymentDate: record.getString('repayment_date'),
+			description: record.getString('description'),
+			forcedClosure: Boolean(record.get('Forced_closure')),
+			files: record.get('files') || [],
+			created: record.getString('created'),
+			updated: record.getString('updated')
+		});
+	}
+	
+	// Заполняем имена партнёров и статей
+	for (let i = 0; i < monthlyPayments.length; i++) {
+		const payment = monthlyPayments[i];
+		
+		// Партнёр
+		const partner = partners.find(p => p.id === payment.partnerId);
+		if (partner) {
+			payment.partnerName = partner.name;
+		}
+		
+		// Статья затрат
+		const costItem = costItems.find(c => c.id === payment.costItemId);
+		if (costItem) {
+			payment.costItemName = costItem.name;
+		}
+	}
+	
+} catch (error) {
+	loadError = error;
+}
+
+const formatCurrency = (input) => {
+	if (input === null || input === undefined) {
+		return '—';
+	}
+
+	let amount = input;
+
+	if (typeof amount === 'string') {
+		const normalized = amount.replace(/[^0-9,.-]/g, '').replace(',', '.');
+		amount = Number(normalized);
+	} else if (typeof amount !== 'number') {
+		amount = Number(amount);
+	}
+
+	if (!Number.isFinite(amount)) {
+		return '—';
+	}
+
+	const safe = Math.round(amount * 100) / 100;
+	const absolute = Math.abs(safe);
+	const sign = safe < 0 ? '-' : '';
+	const integerPart = Math.trunc(absolute);
+	const fractionPart = Math.round((absolute - integerPart) * 100);
+
+	const integerString = String(integerPart).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+	const fractionString = fractionPart.toString().padStart(2, '0');
+
+	return `${sign}${integerString}.${fractionString} ₽`;
+};
+
+const formatDate = (value) => {
+	if (!value) return '—';
+	try {
+		const parsed = new Date(value);
+		if (Number.isNaN(parsed.getTime())) {
+			return value;
+		}
+		return parsed.toLocaleDateString('ru-RU', {
+			day: '2-digit',
+			month: 'short',
+			year: 'numeric'
+		});
+	} catch (error) {
+		return value;
+	}
+};
+%>
+
+<section class="space-y-6">
+	<header class="space-y-1">
+		<h1 class="text-2xl font-semibold">Ежемесячные начисления</h1>
+		<p class="text-sm text-base-content/70">Шаблоны для автоматического создания начислений каждый месяц</p>
+	</header>
+
+	<% if (loadError) { %>
+		<div class="alert alert-error">
+			<span>Не удалось загрузить данные: <%= loadError?.message || loadError %></span>
+		</div>
+	<% } else { %>
+		<div class="flex justify-between items-center mb-4">
+			<button 
+				type="button"
+				onclick="openAddMonthlyPaymentModal()" 
+				class="btn btn-sm btn-primary">
+				<i class="fas fa-plus"></i>
+				Добавить шаблон
+			</button>
+		</div>
+
+		<% if (!monthlyPayments.length) { %>
+			<div class="alert alert-info">
+				<i class="fas fa-info-circle"></i>
+				<span>Шаблонов ежемесячных начислений пока нет. Создайте первый шаблон.</span>
+			</div>
+		<% } else { %>
+			<div class="overflow-x-auto rounded-xl border border-base-200">
+				<table class="table table-zebra table-sm">
+					<thead>
+						<tr>
+							<th>Название</th>
+							<th>Партнёр / Статья</th>
+							<th class="text-right">Сумма</th>
+							<th>День оплаты</th>
+							<th>Статус</th>
+							<th>Описание</th>
+							<th class="text-center">Действия</th>
+						</tr>
+					</thead>
+					<tbody>
+						<% monthlyPayments.forEach(function(item) { %>
+							<tr class="hover:bg-base-300 cursor-pointer" 
+								onclick="openEditMonthlyPaymentModal(
+									'<%= item.id %>', 
+									'<%= item.name.replace(/'/g, "\\'") %>', 
+									'<%= item.number.replace(/'/g, "\\'") %>',
+									'<%= item.partnerId %>',
+									'<%= item.costItemId %>',
+									<%= item.sum %>,
+									'<%= item.repaymentDate %>',
+									'<%= (item.description || '').replace(/'/g, "\\'").replace(/\n/g, ' ') %>',
+									<%= item.forcedClosure %>
+								)">
+								<td class="whitespace-nowrap">
+									<div class="font-semibold"><%= item.name || 'Без названия' %></div>
+									<div class="text-xs text-base-content/60"><%= item.number || 'Без номера' %></div>
+								</td>
+								<td>
+									<% if (item.costItemName) { %>
+										<div class="font-medium"><%= item.costItemName %></div>
+									<% } else { %>
+										<div class="text-base-content/60">—</div>
+									<% } %>
+									<% if (item.partnerName) { %>
+										<div class="text-xs text-base-content/60"><%= item.partnerName %></div>
+									<% } %>
+								</td>
+								<td class="text-right">
+									<div class="font-semibold"><%= formatCurrency(item.sum) %></div>
+								</td>
+								<td class="whitespace-nowrap">
+									<%= formatDate(item.repaymentDate) %>
+								</td>
+								<td>
+									<% if (item.forcedClosure) { %>
+										<span class="badge badge-outline">Закрыто</span>
+									<% } else { %>
+										<span class="badge badge-success">Активно</span>
+									<% } %>
+								</td>
+								<td class="max-w-xs">
+									<% if (item.description) { %>
+										<p class="text-sm text-base-content/80 truncate"><%= item.description %></p>
+									<% } else { %>
+										<span class="text-base-content/40">—</span>
+									<% } %>
+								</td>
+								<td class="text-center" onclick="event.stopPropagation()">
+									<button 
+										class="btn btn-xs btn-ghost"
+										onclick="openEditMonthlyPaymentModal(
+											'<%= item.id %>', 
+											'<%= item.name.replace(/'/g, "\\'") %>', 
+											'<%= item.number.replace(/'/g, "\\'") %>',
+											'<%= item.partnerId %>',
+											'<%= item.costItemId %>',
+											<%= item.sum %>,
+											'<%= item.repaymentDate %>',
+											'<%= (item.description || '').replace(/'/g, "\\'").replace(/\n/g, ' ') %>',
+											<%= item.forcedClosure %>
+										)">
+										<i class="fas fa-edit"></i>
+									</button>
+								</td>
+							</tr>
+						<% }); %>
+					</tbody>
+				</table>
+			</div>
+		<% } %>
+	<% } %>
+</section>
+
+<!-- Модальное окно для добавления шаблона -->
+<dialog id="addMonthlyPaymentModal" class="modal">
+	<div class="modal-box max-w-2xl">
+		<h3 class="font-bold text-lg mb-4">
+			<i class="fas fa-plus-circle text-primary"></i>
+			Добавить шаблон ежемесячного начисления
+		</h3>
+		<form id="addMonthlyPaymentForm" class="space-y-4">
+			<!-- Название -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Название <span class="text-error">*</span></span>
+				</label>
+				<input 
+					type="text" 
+					name="name" 
+					class="input input-bordered w-full" 
+					placeholder="Название начисления"
+					required />
+			</div>
+
+			<!-- Номер -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Номер</span>
+				</label>
+				<input 
+					type="text" 
+					name="number" 
+					class="input input-bordered w-full" 
+					placeholder="Номер документа" />
+			</div>
+
+			<div class="grid grid-cols-2 gap-4">
+				<!-- Партнер -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Партнёр <span class="text-error">*</span></span>
+					</label>
+					<select 
+						name="partner" 
+						class="select select-bordered w-full"
+						required>
+						<option value="">Выберите партнёра</option>
+						<% for (let i = 0; i < partners.length; i++) { %>
+							<option value="<%= partners[i].id %>"><%= partners[i].name %></option>
+						<% } %>
+					</select>
+				</div>
+
+				<!-- Статья расходов -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Статья расходов <span class="text-error">*</span></span>
+					</label>
+					<select 
+						name="cost_item" 
+						class="select select-bordered w-full"
+						required>
+						<option value="">Выберите статью</option>
+						<% for (let i = 0; i < costItems.length; i++) { %>
+							<option value="<%= costItems[i].id %>"><%= costItems[i].name %></option>
+						<% } %>
+					</select>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-2 gap-4">
+				<!-- Сумма -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Сумма <span class="text-error">*</span></span>
+					</label>
+					<input 
+						type="number" 
+						name="sum" 
+						class="input input-bordered w-full" 
+						placeholder="0.00"
+						step="0.01"
+						min="0"
+						required />
+				</div>
+
+				<!-- День оплаты -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">День оплаты (число месяца) <span class="text-error">*</span></span>
+					</label>
+					<input 
+						type="number" 
+						name="repayment_date" 
+						class="input input-bordered w-full"
+						placeholder="15"
+						min="1"
+						max="31"
+						required />
+				</div>
+			</div>
+
+			<!-- Описание -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Описание</span>
+				</label>
+				<textarea 
+					name="description" 
+					class="textarea textarea-bordered w-full" 
+					rows="3"
+					placeholder="Дополнительная информация"></textarea>
+			</div>
+
+			<!-- Кнопки действий -->
+			<div class="modal-action">
+				<button 
+					type="button" 
+					onclick="document.getElementById('addMonthlyPaymentModal').close()" 
+					class="btn btn-ghost">
+					<i class="fas fa-times"></i>
+					Отмена
+				</button>
+				<button 
+					type="submit" 
+					class="btn btn-primary">
+					<i class="fas fa-save"></i>
+					Сохранить
+				</button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>Закрыть</button>
+	</form>
+</dialog>
+
+<!-- Модальное окно для редактирования шаблона -->
+<dialog id="editMonthlyPaymentModal" class="modal">
+	<div class="modal-box max-w-2xl">
+		<h3 class="font-bold text-lg mb-4">
+			<i class="fas fa-edit text-primary"></i>
+			Редактировать шаблон
+		</h3>
+		<form id="editMonthlyPaymentForm" class="space-y-4">
+			<input type="hidden" name="id" id="editMonthlyPaymentId" />
+			
+			<!-- Название -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Название <span class="text-error">*</span></span>
+				</label>
+				<input 
+					type="text" 
+					name="name" 
+					id="editMonthlyPaymentName"
+					class="input input-bordered w-full" 
+					placeholder="Название начисления"
+					required />
+			</div>
+
+			<!-- Номер -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Номер</span>
+				</label>
+				<input 
+					type="text" 
+					name="number" 
+					id="editMonthlyPaymentNumber"
+					class="input input-bordered w-full" 
+					placeholder="Номер документа" />
+			</div>
+
+			<div class="grid grid-cols-2 gap-4">
+				<!-- Партнер -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Партнёр <span class="text-error">*</span></span>
+					</label>
+					<select 
+						name="partner" 
+						id="editMonthlyPaymentPartner"
+						class="select select-bordered w-full"
+						required>
+						<option value="">Выберите партнёра</option>
+						<% for (let i = 0; i < partners.length; i++) { %>
+							<option value="<%= partners[i].id %>"><%= partners[i].name %></option>
+						<% } %>
+					</select>
+				</div>
+
+				<!-- Статья расходов -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Статья расходов <span class="text-error">*</span></span>
+					</label>
+					<select 
+						name="cost_item" 
+						id="editMonthlyPaymentCostItem"
+						class="select select-bordered w-full"
+						required>
+						<option value="">Выберите статью</option>
+						<% for (let i = 0; i < costItems.length; i++) { %>
+							<option value="<%= costItems[i].id %>"><%= costItems[i].name %></option>
+						<% } %>
+					</select>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-2 gap-4">
+				<!-- Сумма -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">Сумма <span class="text-error">*</span></span>
+					</label>
+					<input 
+						type="number" 
+						name="sum" 
+						id="editMonthlyPaymentSum"
+						class="input input-bordered w-full" 
+						placeholder="0.00"
+						step="0.01"
+						min="0"
+						required />
+				</div>
+
+				<!-- День оплаты -->
+				<div class="form-control">
+					<label class="label">
+						<span class="label-text">День оплаты (число месяца) <span class="text-error">*</span></span>
+					</label>
+					<input 
+						type="number" 
+						name="repayment_date" 
+						id="editMonthlyPaymentRepaymentDate"
+						class="input input-bordered w-full"
+						placeholder="15"
+						min="1"
+						max="31"
+						required />
+				</div>
+			</div>
+
+			<!-- Описание -->
+			<div class="form-control">
+				<label class="label">
+					<span class="label-text">Описание</span>
+				</label>
+				<textarea 
+					name="description" 
+					id="editMonthlyPaymentDescription"
+					class="textarea textarea-bordered w-full" 
+					rows="3"
+					placeholder="Дополнительная информация"></textarea>
+			</div>
+
+			<!-- Принудительное закрытие -->
+			<div class="form-control">
+				<label class="label cursor-pointer justify-start gap-2">
+					<input 
+						type="checkbox" 
+						name="Forced_closure" 
+						id="editMonthlyPaymentForcedClosure"
+						class="checkbox checkbox-primary" />
+					<span class="label-text">Приостановить шаблон</span>
+				</label>
+			</div>
+
+			<!-- Кнопки действий -->
+			<div class="modal-action">
+				<button 
+					type="button" 
+					onclick="deleteMonthlyPayment()" 
+					class="btn btn-error mr-auto">
+					<i class="fas fa-trash"></i>
+					Удалить
+				</button>
+				<button 
+					type="button" 
+					onclick="document.getElementById('editMonthlyPaymentModal').close()" 
+					class="btn btn-ghost">
+					<i class="fas fa-times"></i>
+					Отмена
+				</button>
+				<button 
+					type="submit" 
+					class="btn btn-primary">
+					<i class="fas fa-save"></i>
+					Сохранить
+				</button>
+			</div>
+		</form>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>Закрыть</button>
+	</form>
+</dialog>
+
+<script>
+// Функция открытия модального окна добавления
+function openAddMonthlyPaymentModal() {
+	const modal = document.getElementById('addMonthlyPaymentModal');
+	if (modal) {
+		document.getElementById('addMonthlyPaymentForm').reset();
+		modal.showModal();
+	}
+}
+
+// Функция открытия модального окна редактирования
+function openEditMonthlyPaymentModal(id, name, number, partnerId, costItemId, sum, repaymentDate, description, forcedClosure) {
+	const modal = document.getElementById('editMonthlyPaymentModal');
+	if (!modal) return;
+	
+	document.getElementById('editMonthlyPaymentId').value = id;
+	document.getElementById('editMonthlyPaymentName').value = name;
+	document.getElementById('editMonthlyPaymentNumber').value = number;
+	document.getElementById('editMonthlyPaymentPartner').value = partnerId;
+	document.getElementById('editMonthlyPaymentCostItem').value = costItemId;
+	document.getElementById('editMonthlyPaymentSum').value = sum;
+	
+	// Извлекаем день из даты
+	try {
+		const date = new Date(repaymentDate);
+		document.getElementById('editMonthlyPaymentRepaymentDate').value = date.getDate();
+	} catch (e) {
+		document.getElementById('editMonthlyPaymentRepaymentDate').value = '';
+	}
+	
+	document.getElementById('editMonthlyPaymentDescription').value = description;
+	document.getElementById('editMonthlyPaymentForcedClosure').checked = forcedClosure;
+	
+	modal.showModal();
+}
+
+// Обработчик формы добавления
+document.addEventListener('DOMContentLoaded', function() {
+	const addForm = document.getElementById('addMonthlyPaymentForm');
+	if (addForm) {
+		addForm.addEventListener('submit', async function(e) {
+			e.preventDefault();
+			
+			const formData = new FormData(addForm);
+			const data = {
+				name: formData.get('name'),
+				number: formData.get('number') || '',
+				partner: formData.get('partner'),
+				cost_item: formData.get('cost_item'),
+				sum: parseFloat(formData.get('sum')),
+				repayment_date: formData.get('repayment_date'),
+				description: formData.get('description') || ''
+			};
+			
+			try {
+				const response = await fetch('/xapi/monthly-payments/create', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(data)
+				});
+				
+				const result = await response.json();
+				
+				if (!result.success) {
+					throw new Error(result.message || 'Ошибка при создании шаблона');
+				}
+				
+				document.getElementById('addMonthlyPaymentModal').close();
+				window.location.reload();
+				
+			} catch (error) {
+				alert('Ошибка: ' + error.message);
+			}
+		});
+	}
+	
+	// Обработчик формы редактирования
+	const editForm = document.getElementById('editMonthlyPaymentForm');
+	if (editForm) {
+		editForm.addEventListener('submit', async function(e) {
+			e.preventDefault();
+			
+			const formData = new FormData(editForm);
+			const data = {
+				id: formData.get('id'),
+				name: formData.get('name'),
+				number: formData.get('number') || '',
+				partner: formData.get('partner'),
+				cost_item: formData.get('cost_item'),
+				sum: parseFloat(formData.get('sum')),
+				repayment_date: formData.get('repayment_date'),
+				description: formData.get('description') || '',
+				Forced_closure: formData.get('Forced_closure') === 'on'
+			};
+			
+			try {
+				const response = await fetch('/xapi/monthly-payments/update', {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(data)
+				});
+				
+				const result = await response.json();
+				
+				if (!result.success) {
+					throw new Error(result.message || 'Ошибка при обновлении шаблона');
+				}
+				
+				document.getElementById('editMonthlyPaymentModal').close();
+				window.location.reload();
+				
+			} catch (error) {
+				alert('Ошибка: ' + error.message);
+			}
+		});
+	}
+});
+
+// Функция удаления шаблона
+async function deleteMonthlyPayment() {
+	if (!confirm('Вы уверены, что хотите удалить этот шаблон?')) {
+		return;
+	}
+	
+	const recordId = document.getElementById('editMonthlyPaymentId').value;
+	
+	try {
+		const response = await fetch(`/xapi/monthly-payments/delete?id=${recordId}`, {
+			method: 'DELETE'
+		});
+		
+		const result = await response.json();
+		
+		if (!result.success) {
+			throw new Error(result.message || 'Ошибка при удалении шаблона');
+		}
+		
+		document.getElementById('editMonthlyPaymentModal').close();
+		window.location.reload();
+		
+	} catch (error) {
+		alert('Ошибка: ' + error.message);
+	}
+}
+</script>

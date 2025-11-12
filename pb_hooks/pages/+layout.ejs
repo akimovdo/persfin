@@ -55,10 +55,10 @@
           </div>
           <div class="hidden flex-none lg:block">
             <ul class="menu menu-horizontal">
-              <li><a href="/dashboard"><i class="fas fa-tachometer-alt"></i> Дашборд</a></li>
               <% if (request.auth) { 
                 const email = request.auth.getString ? request.auth.getString('email') : (request.auth.email || '');
               %>
+                <li><a href="/dashboard"><i class="fas fa-tachometer-alt"></i> Дашборд</a></li>
                 <li>
                   <details>
                     <summary>
@@ -85,20 +85,29 @@
           class="drawer-overlay"
         ></label>
         <ul class="menu bg-base-200 min-h-full w-80 p-4">
-          <!-- Sidebar content here -->
-          <li class="menu-title">
-            <span><i class="fas fa-chart-bar"></i> Аналитика</span>
-          </li>
-          <li><a href="/dashboard"><i class="fas fa-home"></i> Главная</a></li>
-          <li><a href="/dashboard/accruals"><i class="fas fa-receipt"></i> Начисления</a></li>
-          <li><a href="/dashboard/partners"><i class="fas fa-users"></i> Партнёры</a></li>
-          <li><a href="/dashboard/payments"><i class="fas fa-credit-card"></i> Платежи</a></li>
-          <li><a href="/dashboard/overdue"><i class="fas fa-exclamation-triangle"></i> Просрочка</a></li>
-          
-          <li class="menu-title">
-            <span><i class="fas fa-cog"></i> Управление</span>
-          </li>
-          <li><a href="/docs"><i class="fas fa-book"></i> Документация</a></li>
+          <% if (request.auth) { %>
+            <!-- Sidebar content here -->
+            <li class="menu-title">
+              <span><i class="fas fa-chart-bar"></i> Аналитика</span>
+            </li>
+            <li><a href="/dashboard"><i class="fas fa-home"></i> Главная</a></li>
+            <li><a href="/dashboard/accruals"><i class="fas fa-receipt"></i> Начисления</a></li>
+            <li><a href="/dashboard/partners"><i class="fas fa-users"></i> Партнёры</a></li>
+            <li><a href="/dashboard/payments"><i class="fas fa-credit-card"></i> Платежи</a></li>
+            <li><a href="/dashboard/overdue"><i class="fas fa-exclamation-triangle"></i> Просрочка</a></li>
+            
+            <li class="menu-title">
+              <span><i class="fas fa-cog"></i> Управление</span>
+            </li>
+            <li><a href="/docs"><i class="fas fa-book"></i> Документация</a></li>
+          <% } else { %>
+            <!-- Публичное меню -->
+            <li class="menu-title">
+              <span><i class="fas fa-info-circle"></i> Информация</span>
+            </li>
+            <li><a href="/"><i class="fas fa-home"></i> Главная</a></li>
+            <li><a href="/auth/login"><i class="fas fa-sign-in-alt"></i> Вход в систему</a></li>
+          <% } %>
         </ul>
       </div>
     </div>

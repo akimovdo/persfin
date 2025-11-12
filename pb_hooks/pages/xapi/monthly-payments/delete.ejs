@@ -1,0 +1,52 @@
+<%
+/**
+ * DELETE /xapi/monthly-payments/delete
+ * Удаляет шаблон ежемесячного начисления
+ */
+
+meta('layout', false);
+
+if (request.method !== 'DELETE') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод DELETE'
+    });
+}
+
+try {
+	const id = request.query().get('id');
+	
+	if (!id) {
+		return response.json(400, {
+			success: false,
+			message: 'ID записи обязателен'
+		});
+	}
+	
+	// Находим запись
+	let record;
+	try {
+		record = $app.findRecordById('monthly_payments', id);
+	} catch (error) {
+		return response.json(404, {
+			success: false,
+			message: 'Шаблон не найден'
+		});
+	}
+	
+	// Удаляем запись
+	$app.delete(record);
+	
+	return response.json(200, {
+		success: true,
+		message: 'Шаблон успешно удален'
+	});
+	
+} catch (error) {
+	return response.json(500, {
+		success: false,
+		message: error.message || 'Внутренняя ошибка сервера',
+		stack: error.stack
+	});
+}
+%>

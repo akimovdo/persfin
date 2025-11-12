@@ -1,0 +1,84 @@
+<%
+/**
+ * POST /xapi/monthly-payments/create
+ * Создает новый шаблон ежемесячного начисления
+ */
+
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод POST'
+    });
+}
+
+try {
+	let body;
+	try {
+		body = request.body();
+		if (typeof body === 'string') {
+			body = JSON.parse(body);
+		}
+	} catch (parseError) {
+		return response.json(400, {
+			success: false,
+			message: 'Неверный формат данных: ' + parseError.message
+		});
+	}
+	
+	// Валидация обязательных полей
+	if (!body.name || !body.partner || !body.cost_item || !body.sum || !body.repayment_date) {
+		return response.json(400, {
+			success: false,
+			message: 'Заполните все обязательные поля'
+		});
+	}
+	
+	// Создаем новый шаблон
+	const collection = $app.findCollectionByNameOrId('monthly_payments');
+	const record = new Record(collection);
+	
+	// Формируем дату - используем текущий год и месяц, но день из формы
+	const day = parseInt(body.repayment_date);
+	if (day < 1 || day > 31) {
+		return response.json(400, {
+			success: false,
+			message: 'День месяца должен быть от 1 до 31'
+		});
+	}
+	
+	const now = new Date();
+	const repaymentDate = new Date(now.getFullYear(), now.getMonth(), day);
+	
+	// Устанавливаем значения полей
+	record.set('name', String(body.name));
+	record.set('number', body.number ? String(body.number) : '');
+	record.set('partner', String(body.partner));
+	record.set('cost_item', String(body.cost_item));
+	record.set('sum', parseFloat(body.sum));
+	record.set('repayment_date', repaymentDate.toISOString());
+	record.set('description', body.description ? String(body.description) : '');
+	record.set('Forced_closure', false);
+	
+	// Сохраняем запись
+	$app.save(record);
+	
+	return response.json(200, {
+		success: true,
+		data: {
+			id: record.id,
+			name: record.get('name'),
+			sum: record.get('sum')
+		},
+		message: 'Шаблон успешно создан'
+	});
+	
+} catch (error) {
+	return response.json(500, {
+		success: false,
+		message: error.message || 'Внутренняя ошибка сервера',
+		stack: error.stack
+	});
+}
+%>
