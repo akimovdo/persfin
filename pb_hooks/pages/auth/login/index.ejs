@@ -1,0 +1,94 @@
+<script server>
+  let error = null;
+
+  if (request.method === 'POST') {
+    const { identity, password } = body();
+
+    if (!identity || !password) {
+      error = 'Укажите логин и пароль';
+    } else {
+      try {
+        const cleanedIdentity = String(identity || '').trim();
+        const cleanedPassword = String(password || '').trim();
+        
+        // Используем плагин авторизации
+        const authData = signInWithPassword(cleanedIdentity, cleanedPassword, { collection: 'users' });
+        
+        // Редирект на запрошенную страницу или на dashboard
+        const nextUrl = (request.url.query && request.url.query.next) || '/dashboard';
+        redirect(nextUrl);
+      } catch (e) {
+        error = (e && e.data && (e.data.message || e.data.error)) || (e && e.message) || 'Неверный логин или пароль';
+      }
+    }
+  }
+</script>
+
+<div class="min-h-screen bg-base-200 flex items-center justify-center">
+  <div class="card w-full max-w-md bg-base-100 shadow-xl">
+    <div class="card-body">
+      <div class="text-center mb-6">
+        <i class="fas fa-chart-line text-5xl text-primary mb-3"></i>
+        <h2 class="card-title text-2xl font-bold justify-center">Вход в систему</h2>
+        <p class="text-sm text-base-content/60 mt-2">Финансовая CRM</p>
+      </div>
+      
+      <% if (error) { %>
+        <div class="alert alert-error mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span><%- error %></span>
+        </div>
+      <% } %>
+      
+      <form method="POST" class="space-y-4">
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Email или логин</span>
+          </label>
+          <input 
+            type="text" 
+            name="identity" 
+            placeholder="email@example.com" 
+            class="input input-bordered" 
+            required 
+            autofocus
+            autocomplete="username"
+            value="<%= body().identity || '' %>"
+          />
+        </div>
+        
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Пароль</span>
+          </label>
+          <input 
+            type="password" 
+            name="password" 
+            placeholder="••••••••" 
+            class="input input-bordered" 
+            required
+            autocomplete="current-password"
+          />
+        </div>
+        
+        <div class="form-control mt-6">
+          <button type="submit" class="btn btn-primary w-full">
+            <i class="fas fa-sign-in-alt mr-2"></i>
+            Войти
+          </button>
+        </div>
+      </form>
+      
+      <div class="divider">или</div>
+      
+      <div class="text-center">
+        <a href="/" class="link link-hover text-sm">
+          <i class="fas fa-arrow-left mr-1"></i>
+          Вернуться на главную
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

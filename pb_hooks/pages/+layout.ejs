@@ -1,3 +1,15 @@
+<% // Глобальная защита всех страниц (кроме публичных)
+  try {
+    const _path = (request && request.url && request.url.pathname) || ''
+    const isAuth = _path.startsWith('/auth/')
+    const isPublicLanding = _path === '/'
+    
+    // Если не авторизован и это не страница авторизации и не лендинг – редирект на логин
+    if (!isAuth && !isPublicLanding && !request.auth) {
+      redirect('/auth/login', { next: _path || '/' })
+    }
+  } catch(_) {}
+%>
 <!doctype html>
 <html lang="ru" data-theme="business">
   <head>
@@ -44,7 +56,23 @@
           <div class="hidden flex-none lg:block">
             <ul class="menu menu-horizontal">
               <li><a href="/dashboard"><i class="fas fa-tachometer-alt"></i> Дашборд</a></li>
-              <li><a href="/login"><i class="fas fa-sign-in-alt"></i> Вход</a></li>
+              <% if (request.auth) { 
+                const email = request.auth.getString ? request.auth.getString('email') : (request.auth.email || '');
+              %>
+                <li>
+                  <details>
+                    <summary>
+                      <i class="fas fa-user"></i>
+                      <%= email %>
+                    </summary>
+                    <ul class="bg-base-100 p-2">
+                      <li><a href="/auth/logout"><i class="fas fa-sign-out-alt"></i> Выйти</a></li>
+                    </ul>
+                  </details>
+                </li>
+              <% } else { %>
+                <li><a href="/auth/login"><i class="fas fa-sign-in-alt"></i> Вход</a></li>
+              <% } %>
             </ul>
           </div>
         </div>
