@@ -1,0 +1,10 @@
+{
+  "Name": "localagent",
+  "EndpointType": 2,
+  "URL": "tcp://127.0.0.1:9001",
+  "PublicURL": "",
+  "GroupID": 1,
+  "TLS": false,
+  "TLSSkipVerify": true,
+  "TLSSkipClientVerify": true
+}
