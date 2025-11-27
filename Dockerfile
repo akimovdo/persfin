@@ -1,16 +1,18 @@
 FROM alpine:latest
 
-ARG PB_VERSION=0.32.0
-
 RUN apk add --no-cache \
     unzip \
     ca-certificates \
     nodejs \
-    npm
+    npm \
+    curl \
+    jq
 
-# download and unzip PocketBase
-ADD https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_amd64.zip /tmp/pb.zip
-RUN unzip /tmp/pb.zip -d /pb/
+# Get latest PocketBase version from GitHub API
+RUN LATEST_VERSION=$(curl -s https://api.github.com/repos/pocketbase/pocketbase/releases/latest | jq -r '.tag_name' | sed 's/v//') && \
+    echo "Downloading PocketBase version: ${LATEST_VERSION}" && \
+    curl -L "https://github.com/pocketbase/pocketbase/releases/download/v${LATEST_VERSION}/pocketbase_${LATEST_VERSION}_linux_amd64.zip" -o /tmp/pb.zip && \
+    unzip /tmp/pb.zip -d /pb/
 
 # copy package files and install dependencies
 COPY ./package.json /pb/
