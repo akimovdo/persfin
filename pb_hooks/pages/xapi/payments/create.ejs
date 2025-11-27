@@ -9,46 +9,49 @@ if (request.method !== 'POST') {
 }
 
 try {
-    // body() уже возвращает распарсенный объект
     const formData = body();
     
     // Валидация обязательных полей
-    if (!formData.name || !formData.partner || !formData.cost_item || !formData.sum || !formData.repayment_date) {
+    if (!formData.sum || !formData.date) {
         return response.json(400, {
             success: false,
-            message: 'Заполните все обязательные поля: name, partner, cost_item, sum, repayment_date'
+            message: 'Заполните обязательные поля: sum, date'
         });
     }
     
-    // Создаем новое начисление
-    const collection = $app.findCollectionByNameOrId('accruals');
+    // Создаем новый платеж
+    const collection = $app.findCollectionByNameOrId('payments');
     const record = new Record(collection);
     
     // Устанавливаем значения полей
-    record.set('name', String(formData.name));
-    record.set('number', formData.number ? String(formData.number) : '');
-    record.set('partner', String(formData.partner));
-    record.set('cost_item', String(formData.cost_item));
+    record.set('creditDebitIndicator', formData.creditDebitIndicator ? String(formData.creditDebitIndicator) : '');
+    record.set('payer', formData.payer ? String(formData.payer) : '');
     record.set('sum', parseFloat(formData.sum));
-    record.set('repayment_date', String(formData.repayment_date));
+    record.set('date', String(formData.date));
     record.set('description', formData.description ? String(formData.description) : '');
-    record.set('Forced_closure', false);
+    record.set('transactionId', formData.transactionId ? String(formData.transactionId) : '');
+    record.set('ignore', formData.ignore ? true : false);
+    
+    // Связь с начислением (optional)
+    if (formData.accural) {
+        record.set('accural', String(formData.accural));
+    }
     
     // Сохраняем запись
     $app.save(record);
     
     return response.json(200, {
         success: true,
-        message: 'Начисление успешно создано',
+        message: 'Платеж успешно создан',
         data: {
             id: record.id,
-            name: record.get('name'),
+            payer: record.get('payer'),
             sum: record.get('sum')
         }
     });
     
 } catch (error) {
-    console.error('[create-simple] Error:', error);
+    console.error('[payments/create] Error:', error);
     return response.json(500, {
         success: false,
         message: error.message || 'Внутренняя ошибка сервера'

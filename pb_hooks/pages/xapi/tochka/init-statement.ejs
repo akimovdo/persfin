@@ -22,6 +22,91 @@ if (request.method !== 'POST') {
   });
 }
 
+// Загружаем конфиг Точка банка
+var tochkaConfig = null;
+try {
+  tochkaConfig = $app.findFirstRecordByFilter('tochka_config', 'is_active = true');
+  if (!tochkaConfig) {
+    return response.json(500, {
+      success: false,
+      error: 'Configuration Error',
+      message: 'Не найдена активная конфигурация Точка банка'
+    });
+  }
+} catch (error) {
+  return response.json(500, {
+    success: false,
+    error: 'Configuration Error',
+    message: 'Ошибка загрузки конфигурации: ' + error.message
+  });
+}
+
+// Вспомогательная функция для форматирования даты в YYYY-MM-DD
+var formatDateForApi = function(date) {
+  var d = date instanceof Date ? date : new Date(date);
+  var year = d.getFullYear();
+  var month = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return year + '-' + month + '-' + day;
+};
+
+// Функция для запроса к API Точка банка
+var makeApiRequest = function(endpoint, options) {
+  options = options || {};
+  var url = 'https://enter.tochka.com/uapi/open-banking/v1.0' + endpoint;
+  
+  var headers = {
+    'Authorization': 'Bearer ' + tochkaConfig.getString('jwt_token'),
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  
+  try {
+    var response = $http.send({
+      url: url,
+      method: options.method || 'GET',
+      headers: headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+      timeout: 30
+    });
+    
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return {
+        success: true,
+        data: response.json,
+        statusCode: response.statusCode
+      };
+    } else {
+      return {
+        success: false,
+        error: 'API Error',
+        message: response.json?.message || 'Ошибка при запросе к API Точка банка',
+        statusCode: response.statusCode,
+        details: response.json
+      };
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Request Failed',
+      message: error.message || 'Не удалось выполнить запрос к API Точка банка',
+      details: error
+    };
+  }
+};
+
+// Функция для обновления даты последней синхронизации
+var updateLastSyncDate = function() {
+  try {
+    var config = $app.findRecordById('tochka_config', tochkaConfig.id);
+    config.set('last_sync_date', new Date().toISOString());
+    $app.save(config);
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 // Получить данные из body
 var requestData = body() || {};
 
@@ -32,22 +117,21 @@ var endDateTime = requestData.endDateTime;
 // Если даты не переданы, определяем автоматически
 if (!startDateTime || !endDateTime) {
   try {
-    // Получаем конфигурацию напрямую из БД
-    var config = $app.findFirstRecordByFilter('tochka_config', 'is_active = true');
-    var lastSync = config.get('last_sync_date');
+    var lastSync = tochkaConfig.get('last_sync_date');
     
-    if (lastSync) {
-    // Если есть последняя синхронизация, начинаем с неё
-    startDateTime = data.formatDateForApi(lastSync);
+    // Проверяем, что lastSync - это валидная дата
+    if (lastSync && lastSync !== '' && !isNaN(new Date(lastSync).getTime())) {
+      // Если есть последняя синхронизация, начинаем с неё
+      startDateTime = formatDateForApi(new Date(lastSync));
     } else {
-    // Если нет, берём последний месяц
-    var lastMonth = new Date();
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
-    startDateTime = data.formatDateForApi(lastMonth);
+      // Если нет, берём последний месяц
+      var lastMonth = new Date();
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+      startDateTime = formatDateForApi(lastMonth);
     }
     
     // Конечная дата - сегодня
-    endDateTime = data.formatDateForApi(new Date());
+    endDateTime = formatDateForApi(new Date());
   } catch (error) {
     return response.json(500, {
       success: false,
@@ -58,18 +142,32 @@ if (!startDateTime || !endDateTime) {
   }
 }
 
+// Нормализуем даты на случай, если они пришли в другом формате
+if (startDateTime && startDateTime.length > 10) {
+  startDateTime = startDateTime.substring(0, 10);
+}
+if (endDateTime && endDateTime.length > 10) {
+  endDateTime = endDateTime.substring(0, 10);
+}
+
 // Валидация формата дат (YYYY-MM-DD)
 var dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 if (!dateRegex.test(startDateTime) || !dateRegex.test(endDateTime)) {
   return response.json(400, {
     success: false,
     error: 'Bad Request',
-    message: 'Неверный формат даты. Используйте YYYY-MM-DD'
+    message: 'Неверный формат даты. Используйте YYYY-MM-DD',
+    debug: {
+      startDateTime: startDateTime,
+      endDateTime: endDateTime,
+      startValid: dateRegex.test(startDateTime),
+      endValid: dateRegex.test(endDateTime)
+    }
   });
 }
 
 // Использовать accountId из запроса или из конфига
-var accountId = requestData.accountId ? requestData.accountId : (data && data.tochkaConfig ? data.tochkaConfig.account_id : null);
+var accountId = requestData.accountId ? requestData.accountId : tochkaConfig.getString('account_id');
 
 // Подготовить тело запроса к API Точка
 var apiBody = {
@@ -83,7 +181,7 @@ var apiBody = {
 };
 
 // Выполнить запрос к API Точка синхронно
-var result = data.makeApiRequest(data.ENDPOINTS.STATEMENTS, {
+var result = makeApiRequest('/statements', {
   method: 'POST',
   body: apiBody
 });
@@ -103,7 +201,7 @@ if (result.data && result.data.Data && result.data.Data.Statement) {
 }
 
 try {
-  data.updateLastSyncDate();
+  updateLastSyncDate();
 } catch (e) {
   // Игнорируем ошибку обновления даты синхронизации
 }

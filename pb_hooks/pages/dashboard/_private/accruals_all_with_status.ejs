@@ -2135,8 +2135,8 @@ window.loadBankStatements = async function() {
 						</div>
 					`;
 					
-					// Перезагружаем страницу через 3 секунды для обновления баланса
-					setTimeout(() => window.location.reload(), 3000);
+					// Перезагружаем страницу для обновления баланса
+					window.location.reload();
 				} else {
 					throw new Error('Выписка готова, но данные не были сохранены');
 				}

@@ -1,0 +1,83 @@
+<%
+meta('layout', false);
+
+if (request.method !== 'PATCH' && request.method !== 'POST') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод PATCH или POST'
+    });
+}
+
+try {
+    const formData = body();
+    
+    if (!formData.id) {
+        return response.json(400, {
+            success: false,
+            message: 'ID платежа не указан'
+        });
+    }
+    
+    // Загружаем существующую запись
+    const record = $app.findRecordById('payments', formData.id);
+    
+    // Обновляем только переданные поля
+    if (formData.creditDebitIndicator !== undefined) {
+        record.set('creditDebitIndicator', String(formData.creditDebitIndicator));
+    }
+    if (formData.payer !== undefined) {
+        record.set('payer', String(formData.payer));
+    }
+    if (formData.sum !== undefined) {
+        record.set('sum', parseFloat(formData.sum));
+    }
+    if (formData.date !== undefined) {
+        record.set('date', String(formData.date));
+    }
+    if (formData.description !== undefined) {
+        record.set('description', String(formData.description));
+    }
+    if (formData.transactionId !== undefined) {
+        record.set('transactionId', String(formData.transactionId));
+    }
+    if (formData.ignore !== undefined) {
+        record.set('ignore', formData.ignore ? true : false);
+    }
+    if (formData.accural !== undefined) {
+        // Если пустая строка или null - очищаем связь
+        if (formData.accural === '' || formData.accural === null) {
+            record.set('accural', '');
+        } else {
+            record.set('accural', String(formData.accural));
+        }
+    }
+    
+    // Валидация: sum и date обязательны
+    if (!record.get('sum') || !record.get('date')) {
+        return response.json(400, {
+            success: false,
+            message: 'Поля sum и date обязательны'
+        });
+    }
+    
+    // Сохраняем изменения
+    $app.save(record);
+    
+    return response.json(200, {
+        success: true,
+        message: 'Платеж обновлен',
+        data: {
+            id: record.id,
+            payer: record.get('payer'),
+            sum: record.get('sum')
+        }
+    });
+    
+} catch (error) {
+    console.error('[payments/update] Error:', error);
+    return response.json(500, {
+        success: false,
+        message: error.message || 'Ошибка обновления платежа'
+    });
+}
+%>

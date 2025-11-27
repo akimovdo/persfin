@@ -1,0 +1,56 @@
+<%
+meta('layout', false);
+
+if (request.method !== 'PATCH' && request.method !== 'POST') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод PATCH или POST'
+    });
+}
+
+try {
+    const formData = body();
+    
+    if (!formData.id) {
+        return response.json(400, {
+            success: false,
+            message: 'ID партнера не указан'
+        });
+    }
+    
+    // Загружаем существующую запись
+    const record = $app.findRecordById('partners', formData.id);
+    
+    // Обновляем только переданные поля
+    if (formData.name !== undefined) {
+        record.set('name', String(formData.name));
+    }
+    
+    // Валидация: name обязательно
+    if (!record.get('name')) {
+        return response.json(400, {
+            success: false,
+            message: 'Поле name обязательно'
+        });
+    }
+    
+    // Сохраняем изменения
+    $app.save(record);
+    
+    return response.json(200, {
+        success: true,
+        message: 'Партнер обновлен',
+        data: {
+            id: record.id,
+            name: record.get('name')
+        }
+    });
+    
+} catch (error) {
+    console.error('[partners/update] Error:', error);
+    return response.json(500, {
+        success: false,
+        message: error.message || 'Ошибка обновления партнера'
+    });
+}
+%>

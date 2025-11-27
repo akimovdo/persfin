@@ -1,0 +1,48 @@
+<%
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод POST'
+    });
+}
+
+try {
+    const formData = body();
+    
+    // Валидация обязательных полей
+    if (!formData.name) {
+        return response.json(400, {
+            success: false,
+            message: 'Заполните обязательное поле: name'
+        });
+    }
+    
+    // Создаем нового партнера
+    const collection = $app.findCollectionByNameOrId('partners');
+    const record = new Record(collection);
+    
+    // Устанавливаем значения полей
+    record.set('name', String(formData.name));
+    
+    // Сохраняем запись
+    $app.save(record);
+    
+    return response.json(200, {
+        success: true,
+        message: 'Партнер успешно создан',
+        data: {
+            id: record.id,
+            name: record.get('name')
+        }
+    });
+    
+} catch (error) {
+    console.error('[partners/create] Error:', error);
+    return response.json(500, {
+        success: false,
+        message: error.message || 'Внутренняя ошибка сервера'
+    });
+}
+%>

@@ -1,0 +1,54 @@
+<%
+/**
+ * API endpoint для удаления начисления
+ * DELETE /xapi/accruals/delete?id=xxx
+ */
+meta('layout', false);
+
+if (request.method !== 'DELETE' && request.method !== 'POST') {
+  return response.json(405, { 
+    success: false, 
+    error: 'Используйте метод DELETE' 
+  });
+}
+
+try {
+  const recordId = url.query.id || params.id;
+  
+  if (!recordId) {
+    return response.json(400, {
+      success: false,
+      error: 'ID начисления не указан'
+    });
+  }
+
+  // Загружаем запись для получения названия
+  let recordName = '';
+  try {
+    const record = $app.findRecordById('accruals', recordId);
+    recordName = record.getString('name');
+  } catch (e) {
+    return response.json(404, {
+      success: false,
+      error: 'Начисление не найдено'
+    });
+  }
+
+  // Удаляем запись
+  $app.delete($app.findRecordById('accruals', recordId));
+
+  console.log('[delete] Deleted accrual:', recordId, recordName);
+
+  return response.json(200, {
+    success: true,
+    message: 'Начисление "' + recordName + '" успешно удалено'
+  });
+
+} catch (error) {
+  console.error('[delete] Error:', error);
+  return response.json(500, {
+    success: false,
+    error: error.message || 'Ошибка удаления начисления'
+  });
+}
+%>

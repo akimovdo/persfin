@@ -217,7 +217,16 @@ module.exports = function (api) {
 
         const creditDebitIndicator = tx.creditDebitIndicator || tx.creditDebit || ''
         const bookingDate = tx.bookingDate || tx.documentProcessDate || tx.valueDate || tx.date || null
-        const payer = tx.debtorName || tx.creditorName || tx.counterpartyName || ''
+        
+        // Извлекаем плательщика из разных возможных полей
+        const payer = tx.debtorName || 
+                      tx.creditorName || 
+                      tx.counterpartyName || 
+                      tx.DebtorParty?.name || 
+                      tx.debtorParty?.name || 
+                      tx.CreditorParty?.name || 
+                      tx.creditorParty?.name || 
+                      ''
 
         let description = ''
         if (typeof tx.remittanceInformationUnstructured === 'string') {

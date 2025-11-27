@@ -1,0 +1,304 @@
+<%
+// Страница управления партнерами
+
+const {
+    partners = [],
+    pagination = {},
+    filters = {},
+    stats = {},
+    error = null
+} = data;
+
+const pageTitle = 'Партнеры';
+%>
+
+<div class="container mx-auto p-6">
+<!-- Заголовок страницы -->
+<div class="mb-6">
+    <h1 class="text-3xl font-bold"><%= pageTitle %></h1>
+    <div class="text-sm breadcrumbs">
+        <ul>
+            <li><a href="/dashboard">Дашборд</a></li>
+            <li><%= pageTitle %></li>
+        </ul>
+    </div>
+</div>
+
+<!-- Статистика -->
+<div class="stats shadow mb-6 w-full">
+    <div class="stat">
+        <div class="stat-title">Всего партнеров</div>
+        <div class="stat-value"><%= stats.total || 0 %></div>
+        <div class="stat-desc">в базе данных</div>
+    </div>
+</div>
+
+<!-- Фильтры и кнопка создания -->
+<div class="flex flex-col sm:flex-row gap-4 mb-6">
+    <form method="GET" action="/dashboard/partners" class="flex-1 flex gap-2">
+        <input 
+            type="text" 
+            name="search" 
+            placeholder="Поиск по названию..." 
+            class="input input-bordered flex-1" 
+            value="<%= filters.search || '' %>"
+        >
+        <button type="submit" class="btn btn-primary">Поиск</button>
+        <% if (filters.search) { %>
+            <a href="/dashboard/partners" class="btn btn-ghost">Сбросить</a>
+        <% } %>
+    </form>
+    <button onclick="openPartnerModal()" class="btn btn-success">+ Добавить партнера</button>
+</div>
+
+<!-- Сообщение об ошибке -->
+<% if (error) { %>
+<div role="alert" class="alert alert-error mb-6">
+    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    <span><%= error %></span>
+</div>
+<% } %>
+
+<!-- Таблица партнеров -->
+<div class="overflow-x-auto bg-base-100 rounded-lg shadow">
+    <table class="table table-zebra">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Название</th>
+                <th>Создан</th>
+                <th>Обновлен</th>
+                <th class="text-right">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% if (partners.length === 0) { %>
+                <tr>
+                    <td colspan="5" class="text-center py-8 text-gray-500">
+                        <%= filters.search ? 'Партнеры не найдены' : 'Пока нет партнеров' %>
+                    </td>
+                </tr>
+            <% } else { %>
+                <% partners.forEach(partner => { %>
+                    <tr>
+                        <td class="font-mono text-xs"><%= partner.id %></td>
+                        <td class="font-medium"><%= partner.name %></td>
+                        <td><%= new Date(partner.created).toLocaleDateString('ru-RU') %></td>
+                        <td><%= new Date(partner.updated).toLocaleDateString('ru-RU') %></td>
+                        <td class="text-right">
+                            <button 
+                                class="btn btn-sm btn-info btn-outline mr-2"
+                                data-partner-id="<%= partner.id %>"
+                                onclick="editPartner(this)"
+                            >
+                                Редактировать
+                            </button>
+                            <button 
+                                class="btn btn-sm btn-error btn-outline"
+                                data-partner-id="<%= partner.id %>"
+                                data-partner-name="<%= partner.name %>"
+                                onclick="deletePartner(this)"
+                            >
+                                Удалить
+                            </button>
+                        </td>
+                    </tr>
+                <% }); %>
+            <% } %>
+        </tbody>
+    </table>
+</div>
+
+<!-- Пагинация -->
+<% if (pagination.totalPages > 1) { %>
+<div class="flex justify-center mt-6">
+    <div class="join">
+        <% if (pagination.hasPrev) { %>
+            <a href="?page=<%= pagination.page - 1 %><%= filters.search ? '&search=' + encodeURIComponent(filters.search) : '' %>" class="join-item btn">«</a>
+        <% } %>
+        
+        <% for (let i = 1; i <= pagination.totalPages; i++) { %>
+            <% if (i === pagination.page) { %>
+                <button class="join-item btn btn-active"><%= i %></button>
+            <% } else if (Math.abs(i - pagination.page) <= 2 || i === 1 || i === pagination.totalPages) { %>
+                <a href="?page=<%= i %><%= filters.search ? '&search=' + encodeURIComponent(filters.search) : '' %>" class="join-item btn"><%= i %></a>
+            <% } else if (Math.abs(i - pagination.page) === 3) { %>
+                <button class="join-item btn btn-disabled">...</button>
+            <% } %>
+        <% } %>
+        
+        <% if (pagination.hasNext) { %>
+            <a href="?page=<%= pagination.page + 1 %><%= filters.search ? '&search=' + encodeURIComponent(filters.search) : '' %>" class="join-item btn">»</a>
+        <% } %>
+    </div>
+</div>
+<% } %>
+
+<!-- Модальное окно создания/редактирования -->
+<dialog id="partner_modal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+        <h3 class="font-bold text-lg mb-4" id="modal_title">Добавить партнера</h3>
+        
+        <form id="partner_form" class="space-y-4">
+            <input type="hidden" id="partner_id" name="id">
+            
+            <!-- Название -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Название <span class="text-error">*</span></span>
+                </label>
+                <input 
+                    type="text" 
+                    id="partner_name" 
+                    name="name" 
+                    class="input input-bordered" 
+                    required
+                    placeholder="ООО «Название»"
+                >
+            </div>
+            
+            <!-- Кнопки -->
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closePartnerModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary" id="submit_btn">
+                    <span class="loading loading-spinner loading-sm hidden" id="submit_loading"></span>
+                    <span id="submit_text">Сохранить</span>
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<script>
+// Открыть модальное окно для создания
+function openPartnerModal() {
+    document.getElementById('modal_title').textContent = 'Добавить партнера';
+    document.getElementById('partner_form').reset();
+    document.getElementById('partner_id').value = '';
+    document.getElementById('partner_modal').showModal();
+}
+
+// Открыть модальное окно для редактирования
+async function editPartner(btn) {
+    const partnerId = btn.dataset.partnerId;
+    
+    try {
+        const response = await fetch(`/xapi/partners/get_one?id=${partnerId}`);
+        const result = await response.json();
+        
+        if (!result.success) {
+            toastError(result.message || 'Ошибка загрузки данных');
+            return;
+        }
+        
+        const partner = result.data;
+        document.getElementById('modal_title').textContent = 'Редактировать партнера';
+        document.getElementById('partner_id').value = partner.id;
+        document.getElementById('partner_name').value = partner.name || '';
+        
+        document.getElementById('partner_modal').showModal();
+        
+    } catch (error) {
+        console.error('Edit error:', error);
+        toastError('Ошибка загрузки данных партнера');
+    }
+}
+
+// Закрыть модальное окно
+function closePartnerModal() {
+    document.getElementById('partner_modal').close();
+}
+
+// Удалить партнера
+async function deletePartner(btn) {
+    const partnerId = btn.dataset.partnerId;
+    const partnerName = btn.dataset.partnerName;
+    
+    const confirmed = await showConfirmDialog({
+        title: 'Удалить партнера?',
+        message: `Вы уверены, что хотите удалить партнера "${partnerName}"?`,
+        confirmText: 'Удалить',
+        confirmClass: 'btn-error'
+    });
+    
+    if (!confirmed) return;
+    
+    try {
+        const response = await fetch('/xapi/partners/delete', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: partnerId })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            toastSuccess(result.message || 'Партнер удален');
+            location.reload();
+        } else {
+            toastError(result.message || 'Ошибка удаления');
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        toastError('Ошибка удаления партнера');
+    }
+}
+
+// Обработка формы
+document.getElementById('partner_form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const partnerId = document.getElementById('partner_id').value;
+    const isEdit = !!partnerId;
+    
+    const submitBtn = document.getElementById('submit_btn');
+    const submitText = document.getElementById('submit_text');
+    const submitLoading = document.getElementById('submit_loading');
+    
+    // Показываем загрузку
+    submitBtn.disabled = true;
+    submitLoading.classList.remove('hidden');
+    submitText.textContent = 'Сохранение...';
+    
+    try {
+        const formData = {
+            name: document.getElementById('partner_name').value
+        };
+        
+        if (isEdit) {
+            formData.id = partnerId;
+        }
+        
+        const url = isEdit ? '/xapi/partners/update' : '/xapi/partners/create';
+        const method = isEdit ? 'PATCH' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            toastSuccess(result.message || (isEdit ? 'Партнер обновлен' : 'Партнер создан'));
+            closePartnerModal();
+            location.reload();
+        } else {
+            toastError(result.message || 'Ошибка сохранения');
+        }
+    } catch (error) {
+        console.error('Submit error:', error);
+        toastError('Ошибка сохранения партнера');
+    } finally {
+        submitBtn.disabled = false;
+        submitLoading.classList.add('hidden');
+        submitText.textContent = 'Сохранить';
+    }
+});
+</script>
+
+</div>

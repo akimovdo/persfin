@@ -1,0 +1,67 @@
+<%
+meta('layout', false);
+
+if (request.method !== 'GET') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод GET'
+    });
+}
+
+try {
+    const paymentId = request.query.id;
+    
+    if (!paymentId) {
+        return response.json(400, {
+            success: false,
+            message: 'ID платежа не указан'
+        });
+    }
+    
+    // Загружаем запись с expand
+    const record = $app.findFirstRecordByFilter(
+        'payments',
+        `id = "${paymentId}"`,
+        'accural'
+    );
+    
+    if (!record) {
+        return response.json(404, {
+            success: false,
+            message: 'Платеж не найден'
+        });
+    }
+    
+    // Преобразуем Record в plain object
+    const payment = {
+        id: record.id,
+        creditDebitIndicator: record.getString('creditDebitIndicator') || '',
+        payer: record.getString('payer') || '',
+        sum: record.getFloat('sum') || 0,
+        date: record.getString('date') || '',
+        description: record.getString('description') || '',
+        transactionId: record.getString('transactionId') || '',
+        ignore: record.getBool('ignore') || false,
+        created: record.getString('created'),
+        updated: record.getString('updated')
+    };
+    
+    // Expand accural
+    const accrualRecord = record.expandedOne('accural');
+    if (accrualRecord) {
+        payment.accural = accrualRecord.id;
+    }
+    
+    return response.json(200, {
+        success: true,
+        data: payment
+    });
+    
+} catch (error) {
+    console.error('[payments/get_one] Error:', error);
+    return response.json(500, {
+        success: false,
+        message: error.message || 'Ошибка загрузки платежа'
+    });
+}
+%>

@@ -1,0 +1,453 @@
+<%
+// Страница управления платежами
+
+const {
+    payments = [],
+    pagination = {},
+    filters = {},
+    stats = {},
+    error = null
+} = data;
+
+// Загружаем список начислений для select
+const accrualsList = $app.findRecordsByFilter('accruals', '', '-created', 100, 0);
+const accruals = accrualsList.map(r => ({
+    id: r.id,
+    name: r.getString('name') || ''
+}));
+
+const pageTitle = 'Платежи';
+%>
+
+<div class="container mx-auto p-6">
+<!-- Заголовок страницы -->
+<div class="mb-6">
+    <h1 class="text-3xl font-bold"><%= pageTitle %></h1>
+    <div class="text-sm breadcrumbs">
+        <ul>
+            <li><a href="/dashboard">Дашборд</a></li>
+            <li><%= pageTitle %></li>
+        </ul>
+    </div>
+</div>
+
+<!-- Статистика -->
+<div class="stats shadow mb-6 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="stat">
+        <div class="stat-title">Всего платежей</div>
+        <div class="stat-value text-2xl"><%= stats.total || 0 %></div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Общая сумма</div>
+        <div class="stat-value text-2xl"><%= stats.totalSum || '0.00' %> ₽</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Активных</div>
+        <div class="stat-value text-2xl text-success"><%= stats.active || 0 %></div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Игнорируемых</div>
+        <div class="stat-value text-2xl text-gray-500"><%= stats.ignored || 0 %></div>
+    </div>
+</div>
+
+<!-- Фильтры и кнопка создания -->
+<div class="flex flex-col sm:flex-row gap-4 mb-6">
+    <form method="GET" action="/dashboard/payments" class="flex-1 flex gap-2 flex-wrap">
+        <input 
+            type="text" 
+            name="search" 
+            placeholder="Поиск по плательщику или описанию..." 
+            class="input input-bordered flex-1 min-w-[200px]" 
+            value="<%= filters.search || '' %>"
+        >
+        <select name="ignore" class="select select-bordered">
+            <option value="">Все статусы</option>
+            <option value="false" <%= filters.ignore === 'false' ? 'selected' : '' %>>Активные</option>
+            <option value="true" <%= filters.ignore === 'true' ? 'selected' : '' %>>Игнорируемые</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Фильтр</button>
+        <% if (filters.search || filters.ignore) { %>
+            <a href="/dashboard/payments" class="btn btn-ghost">Сбросить</a>
+        <% } %>
+    </form>
+    <button onclick="openPaymentModal()" class="btn btn-success">+ Добавить платеж</button>
+</div>
+
+<!-- Сообщение об ошибке -->
+<% if (error) { %>
+<div role="alert" class="alert alert-error mb-6">
+    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    <span><%= error %></span>
+</div>
+<% } %>
+
+<!-- Таблица платежей -->
+<div class="overflow-x-auto bg-base-100 rounded-lg shadow">
+    <table class="table table-zebra">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Дата</th>
+                <th>Плательщик</th>
+                <th>Сумма</th>
+                <th>Начисление</th>
+                <th>Статус</th>
+                <th class="text-right">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% if (payments.length === 0) { %>
+                <tr>
+                    <td colspan="7" class="text-center py-8 text-gray-500">
+                        <%= filters.search || filters.ignore ? 'Платежи не найдены' : 'Пока нет платежей' %>
+                    </td>
+                </tr>
+            <% } else { %>
+                <% payments.forEach(payment => { %>
+                    <tr class="<%= payment.ignore ? 'opacity-50' : '' %>">
+                        <td class="font-mono text-xs"><%= payment.id.substring(0, 8) %>...</td>
+                        <td><%= payment.date ? new Date(payment.date).toLocaleDateString('ru-RU') : '-' %></td>
+                        <td><%= payment.payer || '-' %></td>
+                        <td class="font-semibold">
+                            <span class="<%= payment.creditDebitIndicator === 'CRDT' ? 'text-success' : 'text-error' %>">
+                                <%= payment.creditDebitIndicator === 'CRDT' ? '+' : '-' %><%= payment.sum ? payment.sum.toFixed(2) : '0.00' %> ₽
+                            </span>
+                        </td>
+                        <td>
+                            <% if (payment.accural) { %>
+                                <span class="badge badge-info"><%= payment.accural.name %></span>
+                            <% } else { %>
+                                <span class="text-gray-400">-</span>
+                            <% } %>
+                        </td>
+                        <td>
+                            <% if (payment.ignore) { %>
+                                <span class="badge badge-ghost">Игнор</span>
+                            <% } else { %>
+                                <span class="badge badge-success">Активен</span>
+                            <% } %>
+                        </td>
+                        <td class="text-right">
+                            <button 
+                                class="btn btn-sm btn-info btn-outline mr-2"
+                                data-payment-id="<%= payment.id %>"
+                                onclick="editPayment(this)"
+                            >
+                                Редактировать
+                            </button>
+                            <button 
+                                class="btn btn-sm btn-error btn-outline"
+                                data-payment-id="<%= payment.id %>"
+                                data-payment-payer="<%= payment.payer %>"
+                                onclick="deletePayment(this)"
+                            >
+                                Удалить
+                            </button>
+                        </td>
+                    </tr>
+                <% }); %>
+            <% } %>
+        </tbody>
+    </table>
+</div>
+
+<!-- Пагинация -->
+<% if (pagination.totalPages > 1) { %>
+<div class="flex justify-center mt-6">
+    <div class="join">
+        <% if (pagination.hasPrev) { %>
+            <a href="?page=<%= pagination.page - 1 %><%= filters.search ? '&search=' + encodeURIComponent(filters.search) : '' %><%= filters.ignore ? '&ignore=' + filters.ignore : '' %>" class="join-item btn">«</a>
+        <% } %>
+        
+        <% for (let i = 1; i <= pagination.totalPages; i++) { %>
+            <% if (i === pagination.page) { %>
+                <button class="join-item btn btn-active"><%= i %></button>
+            <% } else if (Math.abs(i - pagination.page) <= 2 || i === 1 || i === pagination.totalPages) { %>
+                <a href="?page=<%= i %><%= filters.search ? '&search=' + encodeURIComponent(filters.search) : '' %><%= filters.ignore ? '&ignore=' + filters.ignore : '' %>" class="join-item btn"><%= i %></a>
+            <% } else if (Math.abs(i - pagination.page) === 3) { %>
+                <button class="join-item btn btn-disabled">...</button>
+            <% } %>
+        <% } %>
+        
+        <% if (pagination.hasNext) { %>
+            <a href="?page=<%= pagination.page + 1 %><%= filters.search ? '&search=' + encodeURIComponent(filters.search) : '' %><%= filters.ignore ? '&ignore=' + filters.ignore : '' %>" class="join-item btn">»</a>
+        <% } %>
+    </div>
+</div>
+<% } %>
+
+<!-- Модальное окно создания/редактирования -->
+<dialog id="payment_modal" class="modal">
+    <div class="modal-box w-11/12 max-w-3xl">
+        <h3 class="font-bold text-lg mb-4" id="modal_title">Добавить платеж</h3>
+        
+        <form id="payment_form" class="space-y-4">
+            <input type="hidden" id="payment_id" name="id">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Плательщик -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Плательщик</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="payment_payer" 
+                        name="payer" 
+                        class="input input-bordered" 
+                        placeholder="Название компании"
+                    >
+                </div>
+                
+                <!-- Сумма -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Сумма <span class="text-error">*</span></span>
+                    </label>
+                    <input 
+                        type="number" 
+                        step="0.01"
+                        id="payment_sum" 
+                        name="sum" 
+                        class="input input-bordered" 
+                        required
+                        placeholder="0.00"
+                    >
+                </div>
+                
+                <!-- Дата -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Дата <span class="text-error">*</span></span>
+                    </label>
+                    <input 
+                        type="date" 
+                        id="payment_date" 
+                        name="date" 
+                        class="input input-bordered" 
+                        required
+                    >
+                </div>
+                
+                <!-- Начисление -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Начисление</span>
+                    </label>
+                    <select id="payment_accural" name="accural" class="select select-bordered">
+                        <option value="">Не выбрано</option>
+                        <% accruals.forEach(accr => { %>
+                            <option value="<%= accr.id %>"><%= accr.name %></option>
+                        <% }); %>
+                    </select>
+                </div>
+                
+                <!-- Transaction ID -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Transaction ID</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="payment_transactionId" 
+                        name="transactionId" 
+                        class="input input-bordered" 
+                        placeholder="ABC123..."
+                    >
+                </div>
+                
+                <!-- Credit/Debit -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Тип операции</span>
+                    </label>
+                    <select id="payment_creditDebitIndicator" name="creditDebitIndicator" class="select select-bordered">
+                        <option value="">Не указан</option>
+                        <option value="CRDT">Приход (CRDT)</option>
+                        <option value="DBIT">Расход (DBIT)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Описание -->
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Описание</span>
+                </label>
+                <textarea 
+                    id="payment_description" 
+                    name="description" 
+                    class="textarea textarea-bordered" 
+                    rows="3"
+                    placeholder="Дополнительная информация..."
+                ></textarea>
+            </div>
+            
+            <!-- Игнорировать -->
+            <div class="form-control">
+                <label class="label cursor-pointer justify-start gap-2">
+                    <input type="checkbox" id="payment_ignore" name="ignore" class="checkbox" />
+                    <span class="label-text">Игнорировать этот платеж</span>
+                </label>
+            </div>
+            
+            <!-- Кнопки -->
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="closePaymentModal()">Отмена</button>
+                <button type="submit" class="btn btn-primary" id="submit_btn">
+                    <span class="loading loading-spinner loading-sm hidden" id="submit_loading"></span>
+                    <span id="submit_text">Сохранить</span>
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<script>
+// Открыть модальное окно для создания
+function openPaymentModal() {
+    document.getElementById('modal_title').textContent = 'Добавить платеж';
+    document.getElementById('payment_form').reset();
+    document.getElementById('payment_id').value = '';
+    document.getElementById('payment_modal').showModal();
+}
+
+// Открыть модальное окно для редактирования
+async function editPayment(btn) {
+    const paymentId = btn.dataset.paymentId;
+    
+    try {
+        const response = await fetch(`/xapi/payments/get_one?id=${paymentId}`);
+        const result = await response.json();
+        
+        if (!result.success) {
+            toastError(result.message || 'Ошибка загрузки данных');
+            return;
+        }
+        
+        const payment = result.data;
+        document.getElementById('modal_title').textContent = 'Редактировать платеж';
+        document.getElementById('payment_id').value = payment.id;
+        document.getElementById('payment_payer').value = payment.payer || '';
+        document.getElementById('payment_sum').value = payment.sum || '';
+        document.getElementById('payment_date').value = payment.date || '';
+        document.getElementById('payment_accural').value = payment.accural || '';
+        document.getElementById('payment_transactionId').value = payment.transactionId || '';
+        document.getElementById('payment_creditDebitIndicator').value = payment.creditDebitIndicator || '';
+        document.getElementById('payment_description').value = payment.description || '';
+        document.getElementById('payment_ignore').checked = payment.ignore || false;
+        
+        document.getElementById('payment_modal').showModal();
+        
+    } catch (error) {
+        console.error('Edit error:', error);
+        toastError('Ошибка загрузки данных платежа');
+    }
+}
+
+// Закрыть модальное окно
+function closePaymentModal() {
+    document.getElementById('payment_modal').close();
+}
+
+// Удалить платеж
+async function deletePayment(btn) {
+    const paymentId = btn.dataset.paymentId;
+    const paymentPayer = btn.dataset.paymentPayer || 'этот платеж';
+    
+    const confirmed = await showConfirmDialog({
+        title: 'Удалить платеж?',
+        message: `Вы уверены, что хотите удалить платеж от "${paymentPayer}"?`,
+        confirmText: 'Удалить',
+        confirmClass: 'btn-error'
+    });
+    
+    if (!confirmed) return;
+    
+    try {
+        const response = await fetch('/xapi/payments/delete', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: paymentId })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            toastSuccess(result.message || 'Платеж удален');
+            location.reload();
+        } else {
+            toastError(result.message || 'Ошибка удаления');
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        toastError('Ошибка удаления платежа');
+    }
+}
+
+// Обработка формы
+document.getElementById('payment_form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const paymentId = document.getElementById('payment_id').value;
+    const isEdit = !!paymentId;
+    
+    const submitBtn = document.getElementById('submit_btn');
+    const submitText = document.getElementById('submit_text');
+    const submitLoading = document.getElementById('submit_loading');
+    
+    // Показываем загрузку
+    submitBtn.disabled = true;
+    submitLoading.classList.remove('hidden');
+    submitText.textContent = 'Сохранение...';
+    
+    try {
+        const formData = {
+            payer: document.getElementById('payment_payer').value,
+            sum: parseFloat(document.getElementById('payment_sum').value) || 0,
+            date: document.getElementById('payment_date').value,
+            accural: document.getElementById('payment_accural').value || null,
+            transactionId: document.getElementById('payment_transactionId').value,
+            creditDebitIndicator: document.getElementById('payment_creditDebitIndicator').value,
+            description: document.getElementById('payment_description').value,
+            ignore: document.getElementById('payment_ignore').checked
+        };
+        
+        if (isEdit) {
+            formData.id = paymentId;
+        }
+        
+        const url = isEdit ? '/xapi/payments/update' : '/xapi/payments/create';
+        const method = isEdit ? 'PATCH' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            toastSuccess(result.message || (isEdit ? 'Платеж обновлен' : 'Платеж создан'));
+            closePaymentModal();
+            location.reload();
+        } else {
+            toastError(result.message || 'Ошибка сохранения');
+        }
+    } catch (error) {
+        console.error('Submit error:', error);
+        toastError('Ошибка сохранения платежа');
+    } finally {
+        submitBtn.disabled = false;
+        submitLoading.classList.add('hidden');
+        submitText.textContent = 'Сохранить';
+    }
+});
+</script>
+
+</div>

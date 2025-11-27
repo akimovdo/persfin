@@ -1,0 +1,127 @@
+<%
+/**
+ * API endpoint для обновления начисления
+ * PATCH /xapi/accruals/update?id=xxx
+ * или POST /xapi/accruals/update?id=xxx
+ */
+meta('layout', false);
+
+if (request.method !== 'PATCH' && request.method !== 'POST') {
+  return response.json(405, { 
+    success: false, 
+    error: 'Используйте метод PATCH или POST' 
+  });
+}
+
+try {
+  const recordId = url.query.id || params.id;
+  
+  if (!recordId) {
+    return response.json(400, {
+      success: false,
+      error: 'ID начисления не указан'
+    });
+  }
+
+  const formData = body();
+
+  // Загружаем существующую запись
+  const record = $app.findRecordById('accruals', recordId);
+  
+  // Обновляем только переданные поля
+  if (formData.name !== undefined) {
+    if (!formData.name) {
+      return response.json(400, {
+        success: false,
+        error: 'Название не может быть пустым'
+      });
+    }
+    record.set('name', String(formData.name));
+  }
+  
+  if (formData.number !== undefined) {
+    record.set('number', formData.number ? String(formData.number) : '');
+  }
+  
+  if (formData.partner !== undefined) {
+    if (!formData.partner) {
+      return response.json(400, {
+        success: false,
+        error: 'Партнёр обязателен'
+      });
+    }
+    record.set('partner', String(formData.partner));
+  }
+  
+  if (formData.cost_item !== undefined) {
+    if (!formData.cost_item) {
+      return response.json(400, {
+        success: false,
+        error: 'Статья затрат обязательна'
+      });
+    }
+    record.set('cost_item', String(formData.cost_item));
+  }
+  
+  if (formData.sum !== undefined) {
+    const sum = parseFloat(formData.sum);
+    if (isNaN(sum)) {
+      return response.json(400, {
+        success: false,
+        error: 'Неверный формат суммы'
+      });
+    }
+    record.set('sum', sum);
+  }
+  
+  if (formData.repayment_date !== undefined) {
+    if (!formData.repayment_date) {
+      return response.json(400, {
+        success: false,
+        error: 'Дата оплаты обязательна'
+      });
+    }
+    record.set('repayment_date', String(formData.repayment_date));
+  }
+  
+  if (formData.description !== undefined) {
+    record.set('description', formData.description ? String(formData.description) : '');
+  }
+  
+  if (formData.Forced_closure !== undefined) {
+    record.set('Forced_closure', Boolean(formData.Forced_closure));
+  }
+  
+  // Сохраняем изменения
+  $app.save(record);
+
+  console.log('[update] Updated accrual:', recordId);
+
+  return response.json(200, {
+    success: true,
+    message: 'Начисление "' + record.get('name') + '" успешно обновлено',
+    data: {
+      id: record.id,
+      name: record.get('name'),
+      number: record.get('number'),
+      sum: record.get('sum'),
+      repayment_date: record.get('repayment_date')
+    }
+  });
+
+} catch (error) {
+  console.error('[update] Error:', error);
+  
+  if (error.message && error.message.includes('doesn\'t exist')) {
+    return response.json(404, {
+      success: false,
+      error: 'Начисление не найдено'
+    });
+  }
+  
+  return response.json(500, {
+    success: false,
+    error: error.message || 'Ошибка обновления начисления'
+  });
+}
+%>

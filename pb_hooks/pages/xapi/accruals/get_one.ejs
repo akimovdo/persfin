@@ -1,0 +1,92 @@
+<%
+/**
+ * API endpoint для получения одного начисления
+ * GET /xapi/accruals/get_one?id=xxx
+ */
+meta('layout', false);
+
+if (request.method !== 'GET') {
+  return response.json(405, { 
+    success: false, 
+    error: 'Используйте метод GET' 
+  });
+}
+
+try {
+  const recordId = url.query.id || params.id;
+  
+  if (!recordId) {
+    return response.json(400, {
+      success: false,
+      error: 'ID начисления не указан'
+    });
+  }
+
+  // Загружаем запись
+  const record = $app.findRecordById('accruals', recordId);
+  
+  // Преобразуем в plain object
+  const item = {
+    id: record.getString('id'),
+    name: record.getString('name'),
+    number: record.getString('number'),
+    partner: record.getString('partner'),
+    cost_item: record.getString('cost_item'),
+    sum: record.getFloat('sum'),
+    repayment_date: record.getString('repayment_date'),
+    description: record.getString('description'),
+    Forced_closure: record.getBool('Forced_closure'),
+    created: record.getString('created'),
+    updated: record.getString('updated'),
+    expand: {}
+  };
+  
+  // Expand партнёра
+  try {
+    const partnerId = record.getString('partner');
+    if (partnerId) {
+      const partner = $app.findRecordById('partners', partnerId);
+      item.expand.partner = {
+        id: partner.getString('id'),
+        name: partner.getString('name')
+      };
+    }
+  } catch (e) {
+    console.error('[get_one] Error expanding partner:', e);
+  }
+  
+  // Expand статьи затрат
+  try {
+    const costItemId = record.getString('cost_item');
+    if (costItemId) {
+      const costItem = $app.findRecordById('cost_items', costItemId);
+      item.expand.cost_item = {
+        id: costItem.getString('id'),
+        name: costItem.getString('name')
+      };
+    }
+  } catch (e) {
+    console.error('[get_one] Error expanding cost_item:', e);
+  }
+
+  return response.json(200, {
+    success: true,
+    data: item
+  });
+
+} catch (error) {
+  console.error('[get_one] Error:', error);
+  
+  if (error.message && error.message.includes('doesn\'t exist')) {
+    return response.json(404, {
+      success: false,
+      error: 'Начисление не найдено'
+    });
+  }
+  
+  return response.json(500, {
+    success: false,
+    error: error.message || 'Ошибка загрузки начисления'
+  });
+}
+%>

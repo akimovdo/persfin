@@ -1,0 +1,40 @@
+<%
+meta('layout', false);
+
+if (request.method !== 'DELETE') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод DELETE'
+    });
+}
+
+try {
+    const formData = body();
+    
+    if (!formData.id) {
+        return response.json(400, {
+            success: false,
+            message: 'ID платежа не указан'
+        });
+    }
+    
+    // Загружаем запись
+    const record = $app.findRecordById('payments', formData.id);
+    const paymentPayer = record.get('payer') || 'платеж';
+    
+    // Удаляем запись
+    $app.delete(record);
+    
+    return response.json(200, {
+        success: true,
+        message: `Платеж от "${paymentPayer}" удален`
+    });
+    
+} catch (error) {
+    console.error('[payments/delete] Error:', error);
+    return response.json(500, {
+        success: false,
+        message: error.message || 'Ошибка удаления платежа'
+    });
+}
+%>

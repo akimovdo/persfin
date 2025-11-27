@@ -1,0 +1,44 @@
+<%
+meta('layout', false);
+
+if (request.method !== 'GET') {
+    return response.json(405, {
+        success: false,
+        message: 'Используйте метод GET'
+    });
+}
+
+try {
+    const partnerId = request.query.id;
+    
+    if (!partnerId) {
+        return response.json(400, {
+            success: false,
+            message: 'ID партнера не указан'
+        });
+    }
+    
+    // Загружаем запись
+    const record = $app.findRecordById('partners', partnerId);
+    
+    // Преобразуем Record в plain object
+    const partner = {
+        id: record.id,
+        name: record.getString('name') || '',
+        created: record.getString('created'),
+        updated: record.getString('updated')
+    };
+    
+    return response.json(200, {
+        success: true,
+        data: partner
+    });
+    
+} catch (error) {
+    console.error('[partners/get_one] Error:', error);
+    return response.json(500, {
+        success: false,
+        message: error.message || 'Ошибка загрузки партнера'
+    });
+}
+%>
