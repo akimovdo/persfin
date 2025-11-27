@@ -64,7 +64,6 @@ const pageTitle = 'Партнеры';
     <table class="table table-zebra">
         <thead>
             <tr>
-                <th>ID</th>
                 <th>Название</th>
                 <th>Создан</th>
                 <th>Обновлен</th>
@@ -74,17 +73,26 @@ const pageTitle = 'Партнеры';
         <tbody>
             <% if (partners.length === 0) { %>
                 <tr>
-                    <td colspan="5" class="text-center py-8 text-gray-500">
+                    <td colspan="4" class="text-center py-8 text-gray-500">
                         <%= filters.search ? 'Партнеры не найдены' : 'Пока нет партнеров' %>
                     </td>
                 </tr>
             <% } else { %>
                 <% partners.forEach(partner => { %>
                     <tr>
-                        <td class="font-mono text-xs"><%= partner.id %></td>
                         <td class="font-medium"><%= partner.name %></td>
-                        <td><%= new Date(partner.created).toLocaleDateString('ru-RU') %></td>
-                        <td><%= new Date(partner.updated).toLocaleDateString('ru-RU') %></td>
+                        <td><%
+                            const created = new Date(partner.created);
+                            const createdDay = String(created.getDate()).padStart(2, '0');
+                            const createdMonth = String(created.getMonth() + 1).padStart(2, '0');
+                            const createdYear = created.getFullYear();
+                        %><%= createdDay %>.<%= createdMonth %>.<%= createdYear %></td>
+                        <td><%
+                            const updated = new Date(partner.updated);
+                            const updatedDay = String(updated.getDate()).padStart(2, '0');
+                            const updatedMonth = String(updated.getMonth() + 1).padStart(2, '0');
+                            const updatedYear = updated.getFullYear();
+                        %><%= updatedDay %>.<%= updatedMonth %>.<%= updatedYear %></td>
                         <td class="text-right">
                             <button 
                                 class="btn btn-sm btn-info btn-outline mr-2"

@@ -9,7 +9,8 @@ if (request.method !== 'GET') {
 }
 
 try {
-    const paymentId = request.query.id;
+    const parsedUrl = url(request.url);
+    const paymentId = parsedUrl.query.id || params.id;
     
     if (!paymentId) {
         return response.json(400, {
@@ -18,12 +19,13 @@ try {
         });
     }
     
-    // Загружаем запись с expand
-    const record = $app.findFirstRecordByFilter(
-        'payments',
-        `id = "${paymentId}"`,
-        'accural'
-    );
+    // Загружаем запись
+    let record;
+    try {
+        record = $app.findRecordById('payments', paymentId);
+    } catch (e) {
+        record = null;
+    }
     
     if (!record) {
         return response.json(404, {
@@ -31,7 +33,6 @@ try {
             message: 'Платеж не найден'
         });
     }
-    
     // Преобразуем Record в plain object
     const payment = {
         id: record.id,
@@ -46,10 +47,14 @@ try {
         updated: record.getString('updated')
     };
     
-    // Expand accural
-    const accrualRecord = record.expandedOne('accural');
-    if (accrualRecord) {
-        payment.accural = accrualRecord.id;
+    // Загружаем связь с начислением вручную
+    try {
+        const accrualId = record.getString('accural');
+        if (accrualId) {
+            payment.accural = accrualId;
+        }
+    } catch (e) {
+        console.error('[payments/get_one] Error getting accural:', e);
     }
     
     return response.json(200, {

@@ -9,7 +9,8 @@ if (request.method !== 'GET') {
 }
 
 try {
-    const partnerId = request.query.id;
+    const parsedUrl = url(request.url);
+    const partnerId = parsedUrl.query.id || params.id;
     
     if (!partnerId) {
         return response.json(400, {
@@ -19,7 +20,19 @@ try {
     }
     
     // Загружаем запись
-    const record = $app.findRecordById('partners', partnerId);
+    let record;
+    try {
+        record = $app.findRecordById('partners', partnerId);
+    } catch (e) {
+        record = null;
+    }
+    
+    if (!record) {
+        return response.json(404, {
+            success: false,
+            message: 'Партнер не найден'
+        });
+    }
     
     // Преобразуем Record в plain object
     const partner = {

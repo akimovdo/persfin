@@ -1,42 +1,36 @@
-<%
 // +load.js для partners
 // Загрузка данных с фильтрами и пагинацией
 
+module.exports = function(api) {
 try {
-    // Извлекаем query-параметры
-    const searchQuery = request.query.search || '';
-    const page = parseInt(request.query.page) || 1;
-    const perPage = parseInt(request.query.per_page) || 20;
+    const { url, request } = api;
+    // url это функция! Вызываем её с request.url
+    const parsedUrl = url(request.url);
+    const query = parsedUrl.query || {};
+    const searchQuery = (query.search || '').toString().trim();
+    const page = Math.max(1, Number(query.page || 1));
+    const perPage = Math.max(1, Number(query.per_page || 20));
     
-    // Строим фильтр для поиска
-    let filter = '';
-    if (searchQuery) {
-        filter = `name ~ "${searchQuery}"`;
-    }
-    
-    // Запрашиваем партнеров с пагинацией
-    const collection = $app.findCollectionByNameOrId('partners');
-    const resultList = $app.findRecordsByFilter(
-        'partners',
-        filter,
-        '-created', // сортировка по дате создания (новые первыми)
-        perPage,
-        (page - 1) * perPage
-    );
-    
-    // Преобразуем Records в plain objects для EJS
-    const partners = resultList.map(record => ({
+    // Загружаем все записи и фильтруем на уровне JS (так избегаем проблем с dbx.Expression)
+    const allRecords = $app.findRecordsByFilter('partners', '', '-created', 0, 0);
+    const allPartners = allRecords.map(record => ({
         id: record.id,
         name: record.getString('name') || '',
         created: record.getString('created'),
         updated: record.getString('updated')
     }));
     
-    // Считаем общее количество записей для пагинации
-    const totalItems = $app.countRecords('partners', filter);
-    const totalPages = Math.ceil(totalItems / perPage);
+    const searchLower = searchQuery.toLowerCase();
+    const filteredPartners = searchLower
+        ? allPartners.filter(item => item.name.toLowerCase().includes(searchLower))
+        : allPartners;
     
-    // Статистика
+    const totalItems = filteredPartners.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    const safePage = totalPages > 0 ? Math.min(page, totalPages) : 1;
+    const startIndex = (safePage - 1) * perPage;
+    const partners = filteredPartners.slice(startIndex, startIndex + perPage);
+    
     const stats = {
         total: totalItems
     };
@@ -45,12 +39,12 @@ try {
     return {
         partners,
         pagination: {
-            page,
+            page: safePage,
             perPage,
             totalItems,
             totalPages,
-            hasNext: page < totalPages,
-            hasPrev: page > 1
+            hasNext: safePage < totalPages,
+            hasPrev: safePage > 1
         },
         filters: {
             search: searchQuery
@@ -79,4 +73,4 @@ try {
         error: error.message || 'Ошибка загрузки данных'
     };
 }
-%>
+};

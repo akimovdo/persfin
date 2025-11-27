@@ -1,41 +1,26 @@
-<%
 // +load.js для payments
 // Загрузка данных с фильтрами и пагинацией
 
+module.exports = function(api) {
 try {
-    // Извлекаем query-параметры
-    const searchQuery = request.query.search || '';
-    const filterIgnore = request.query.ignore || ''; // all, true, false
-    const page = parseInt(request.query.page) || 1;
-    const perPage = parseInt(request.query.per_page) || 20;
+    const { url, request } = api;
     
-    // Строим фильтр для поиска
-    let filters = [];
+    // url это функция! Нужно вызвать её с request.url
+    const parsedUrl = url(request.url);
+    const query = parsedUrl.query || {};
     
-    if (searchQuery) {
-        filters.push(`(payer ~ "${searchQuery}" || description ~ "${searchQuery}")`);
-    }
+    const searchQuery = query.search ? String(query.search).trim() : '';
+    const filterIgnore = query.ignore ? String(query.ignore) : ''; // 'true', 'false', или ''
+    const page = Math.max(1, Number(query.page || 1));
+    const perPage = Math.max(1, Number(query.per_page || 20));
     
-    if (filterIgnore === 'true') {
-        filters.push('ignore = true');
-    } else if (filterIgnore === 'false') {
-        filters.push('ignore = false');
-    }
+    // Загружаем все платежи и фильтруем на уровне JS
+    const allRecords = $app.findRecordsByFilter('payments', '', '-date', 0, 0);
+    const allPayments = [];
     
-    const filter = filters.join(' && ') || '';
-    
-    // Запрашиваем платежи с пагинацией и expand для связанных записей
-    const resultList = $app.findRecordsByFilter(
-        'payments',
-        filter,
-        '-date', // сортировка по дате (новые первыми)
-        perPage,
-        (page - 1) * perPage,
-        'accural' // expand связанного начисления
-    );
-    
-    // Преобразуем Records в plain objects для EJS
-    const payments = resultList.map(record => {
+    for (let i = 0; i < allRecords.length; i++) {
+        const record = allRecords[i];
+        
         const payment = {
             id: record.id,
             creditDebitIndicator: record.getString('creditDebitIndicator') || '',
@@ -49,28 +34,54 @@ try {
             updated: record.getString('updated')
         };
         
-        // Expand accural (начисление)
-        const accrualRecord = record.expandedOne('accural');
-        if (accrualRecord) {
-            payment.accural = {
-                id: accrualRecord.id,
-                name: accrualRecord.getString('name') || ''
-            };
+        // Загружаем связь с начислением вручную
+        try {
+            const accrualId = record.getString('accural');
+            if (accrualId) {
+                const accrualRecord = $app.findRecordById('accruals', accrualId);
+                if (accrualRecord) {
+                    payment.accural = {
+                        id: accrualRecord.getString('id'),
+                        name: accrualRecord.getString('name') || ''
+                    };
+                }
+            }
+        } catch (e) {
+            console.error('[payments/+load] Error expanding accural:', e);
         }
         
-        return payment;
-    });
+        allPayments.push(payment);
+    }
     
-    // Считаем общее количество записей для пагинации
-    const totalItems = $app.countRecords('payments', filter);
+    // Фильтрация по признакам ignore/search
+    let filteredPayments = allPayments;
+    if (filterIgnore === 'true') {
+        filteredPayments = filteredPayments.filter(item => item.ignore === true);
+    } else if (filterIgnore === 'false') {
+        filteredPayments = filteredPayments.filter(item => item.ignore === false);
+    }
+    
+    const searchLower = searchQuery.toLowerCase();
+    if (searchLower) {
+        filteredPayments = filteredPayments.filter(item =>
+            item.payer.toLowerCase().includes(searchLower) ||
+            item.description.toLowerCase().includes(searchLower)
+        );
+    }
+    
+    // Пагинация
+    const totalItems = filteredPayments.length;
     const totalPages = Math.ceil(totalItems / perPage);
+    const safePage = totalPages > 0 ? Math.min(page, totalPages) : 1;
+    const startIndex = (safePage - 1) * perPage;
+    const payments = filteredPayments.slice(startIndex, startIndex + perPage);
     
-    // Статистика
-    const totalSum = $app.findRecordsByFilter('payments', filter, '', 0, 0)
-        .reduce((sum, record) => sum + (record.getFloat('sum') || 0), 0);
+    // Статистика по текущему фильтру
+    const totalSum = filteredPayments.reduce((sum, item) => sum + (item.sum || 0), 0);
     
-    const ignoredCount = $app.countRecords('payments', 'ignore = true');
-    const activeCount = $app.countRecords('payments', 'ignore = false');
+    // Считаем статистику из уже загруженных данных (не из БД)
+    const ignoredCount = allPayments.filter(p => p.ignore === true).length;
+    const activeCount = allPayments.filter(p => p.ignore === false).length;
     
     const stats = {
         total: totalItems,
@@ -83,12 +94,12 @@ try {
     return {
         payments,
         pagination: {
-            page,
+            page: safePage,
             perPage,
             totalItems,
             totalPages,
-            hasNext: page < totalPages,
-            hasPrev: page > 1
+            hasNext: safePage < totalPages,
+            hasPrev: safePage > 1
         },
         filters: {
             search: searchQuery,
@@ -122,4 +133,4 @@ try {
         error: error.message || 'Ошибка загрузки данных'
     };
 }
-%>
+};

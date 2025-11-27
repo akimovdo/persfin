@@ -53,7 +53,7 @@ const pageTitle = 'Платежи';
 
 <!-- Фильтры и кнопка создания -->
 <div class="flex flex-col sm:flex-row gap-4 mb-6">
-    <form method="GET" action="/dashboard/payments" class="flex-1 flex gap-2 flex-wrap">
+    <form id="filter_form" method="GET" action="/dashboard/payments" class="flex-1 flex gap-2 flex-wrap">
         <input 
             type="text" 
             name="search" 
@@ -61,18 +61,35 @@ const pageTitle = 'Платежи';
             class="input input-bordered flex-1 min-w-[200px]" 
             value="<%= filters.search || '' %>"
         >
-        <select name="ignore" class="select select-bordered">
+        <select name="ignore" class="select select-bordered" onchange="document.getElementById('filter_form').dispatchEvent(new Event('submit'))">
             <option value="">Все статусы</option>
             <option value="false" <%= filters.ignore === 'false' ? 'selected' : '' %>>Активные</option>
             <option value="true" <%= filters.ignore === 'true' ? 'selected' : '' %>>Игнорируемые</option>
         </select>
-        <button type="submit" class="btn btn-primary">Фильтр</button>
         <% if (filters.search || filters.ignore) { %>
             <a href="/dashboard/payments" class="btn btn-ghost">Сбросить</a>
         <% } %>
     </form>
     <button onclick="openPaymentModal()" class="btn btn-success">+ Добавить платеж</button>
 </div>
+
+<script>
+// Убираем пустые параметры из URL при отправке формы
+document.getElementById('filter_form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const params = new URLSearchParams();
+    
+    for (const [key, value] of formData.entries()) {
+        if (value && value.trim() !== '') {
+            params.append(key, value);
+        }
+    }
+    
+    const queryString = params.toString();
+    window.location.href = this.action + (queryString ? '?' + queryString : '');
+});
+</script>
 
 <!-- Сообщение об ошибке -->
 <% if (error) { %>
@@ -87,7 +104,6 @@ const pageTitle = 'Платежи';
     <table class="table table-zebra">
         <thead>
             <tr>
-                <th>ID</th>
                 <th>Дата</th>
                 <th>Плательщик</th>
                 <th>Сумма</th>
@@ -99,15 +115,24 @@ const pageTitle = 'Платежи';
         <tbody>
             <% if (payments.length === 0) { %>
                 <tr>
-                    <td colspan="7" class="text-center py-8 text-gray-500">
+                    <td colspan="6" class="text-center py-8 text-gray-500">
                         <%= filters.search || filters.ignore ? 'Платежи не найдены' : 'Пока нет платежей' %>
                     </td>
                 </tr>
             <% } else { %>
                 <% payments.forEach(payment => { %>
                     <tr class="<%= payment.ignore ? 'opacity-50' : '' %>">
-                        <td class="font-mono text-xs"><%= payment.id.substring(0, 8) %>...</td>
-                        <td><%= payment.date ? new Date(payment.date).toLocaleDateString('ru-RU') : '-' %></td>
+                        <td><%
+                            if (payment.date) {
+                                const d = new Date(payment.date);
+                                const day = String(d.getDate()).padStart(2, '0');
+                                const month = String(d.getMonth() + 1).padStart(2, '0');
+                                const year = d.getFullYear();
+                                %><%= day %>.<%= month %>.<%= year %><%
+                            } else {
+                                %>-<%
+                            }
+                        %></td>
                         <td><%= payment.payer || '-' %></td>
                         <td class="font-semibold">
                             <span class="<%= payment.creditDebitIndicator === 'CRDT' ? 'text-success' : 'text-error' %>">
