@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  persfin:
+    build: .
+    container_name: persfin
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./pb_data:/pb/pb_data
+    environment:
+      - PB_PUBLIC_URL=https://persfin.42bureau.ru
+      - PP_HOST=https://persfin.42bureau.ru
+    restart: unless-stopped
