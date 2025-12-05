@@ -597,7 +597,7 @@ document.addEventListener('DOMContentLoaded', function() {
 				}
 				
 				document.getElementById('addMonthlyPaymentModal').close();
-				window.location.reload();
+				window.reloadWithLoader();
 				
 			} catch (error) {
 				alert('Ошибка: ' + error.message);
@@ -638,7 +638,7 @@ document.addEventListener('DOMContentLoaded', function() {
 				}
 				
 				document.getElementById('editMonthlyPaymentModal').close();
-				window.location.reload();
+				window.reloadWithLoader();
 				
 			} catch (error) {
 				alert('Ошибка: ' + error.message);
@@ -667,7 +667,7 @@ async function deleteMonthlyPayment() {
 		}
 		
 		document.getElementById('editMonthlyPaymentModal').close();
-		window.location.reload();
+		window.reloadWithLoader();
 		
 	} catch (error) {
 		alert('Ошибка: ' + error.message);

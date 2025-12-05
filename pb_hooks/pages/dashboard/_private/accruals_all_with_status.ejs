@@ -1485,7 +1485,7 @@ try {
 		</div>
 		<div class="modal-action">
 			<form method="dialog">
-				<button class="btn btn-primary" onclick="window.location.reload()">
+				<button class="btn btn-primary" onclick="window.reloadWithLoader()">
 					<i class="fas fa-sync-alt"></i>
 					Обновить страницу
 				</button>
@@ -2136,7 +2136,7 @@ window.loadBankStatements = async function() {
 					`;
 					
 					// Перезагружаем страницу для обновления баланса
-					window.location.reload();
+					window.reloadWithLoader();
 				} else {
 					throw new Error('Выписка готова, но данные не были сохранены');
 				}
@@ -2741,7 +2741,7 @@ window.savePaymentAllocations = async function() {
 		
 		// Закрываем модальное окно и перезагружаем страницу
 		document.getElementById('paymentsModal').close();
-		window.location.reload();
+		window.reloadWithLoader();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -2848,7 +2848,7 @@ async function submitEditWaitIncomeForm() {
 		
 		// Закрываем модальное окно и перезагружаем страницу
 		document.getElementById('editWaitIncomeModal').close();
-		window.location.reload();
+		window.reloadWithLoader();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -2899,7 +2899,7 @@ async function deleteWaitIncome() {
 		
 		// Закрываем модальное окно и перезагружаем страницу
 		document.getElementById('editWaitIncomeModal').close();
-		window.location.reload();
+		window.reloadWithLoader();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -2962,7 +2962,7 @@ document.addEventListener('DOMContentLoaded', function() {
 				
 				// Закрываем модальное окно и перезагружаем страницу
 				document.getElementById('addWaitIncomeModal').close();
-				window.location.reload();
+				window.reloadWithLoader();
 				
 			} catch (error) {
 				await showNotificationModal({
@@ -3062,7 +3062,7 @@ async function submitAddAccrualForm() {
 		document.getElementById('addAccrualModal').close();
 		
 		// Перезагружаем страницу для обновления данных
-		window.location.reload();
+		window.reloadWithLoader();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -3146,7 +3146,7 @@ async function submitEditAccrualForm() {
 		});
 		
 		document.getElementById('editAccrualModal').close();
-		window.location.reload();
+		window.reloadWithLoader();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -3221,7 +3221,7 @@ async function submitManualPaymentForm(e) {
 		document.getElementById('manualPaymentModal').close();
 		
 		// Перезагружаем страницу для обновления данных
-		window.location.reload();
+		window.reloadWithLoader();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -3275,7 +3275,7 @@ async function deleteAccrual() {
 		});
 		
 		document.getElementById('editAccrualModal').close();
-		window.location.reload();
+		window.reloadWithLoader();
 		
 	} catch (error) {
 		await showNotificationModal({
