@@ -14,7 +14,8 @@ if (request.method !== 'PATCH' && request.method !== 'POST') {
 }
 
 try {
-  const recordId = url.query.id || params.id;
+  const parsedUrl = url(request.url);
+  const recordId = parsedUrl.query.id || params.id;
   
   if (!recordId) {
     return response.json(400, {

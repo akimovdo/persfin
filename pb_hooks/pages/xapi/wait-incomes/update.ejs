@@ -1,19 +1,21 @@
 <%
 /**
- * API эндпоинт для обновления записи wait_incomes
+ * API endpoint для обновления wait_incomes
  * PATCH /xapi/wait-incomes/update?id=xxx
+ * или POST /xapi/wait-incomes/update?id=xxx
  */
 meta('layout', false);
 
 if (request.method !== 'PATCH' && request.method !== 'POST') {
   return response.json(405, { 
     success: false, 
-    error: 'Method not allowed' 
+    error: 'Используйте метод PATCH или POST' 
   });
 }
 
 try {
-  const recordId = url.query.id || params.id;
+  const parsedUrl = url(request.url);
+  const recordId = parsedUrl.query.id;
   
   if (!recordId) {
     return response.json(400, {
@@ -27,33 +29,49 @@ try {
   // Загружаем существующую запись
   const record = $app.findRecordById('wait_incomes', recordId);
   
-  // Обновляем поля
+  // Обновляем только переданные поля
   if (formData.name !== undefined) {
-    record.set('name', formData.name);
-  }
-  if (formData.sum !== undefined) {
-    record.set('sum', formData.sum);
-  }
-  if (formData.accrual_month !== undefined) {
-    record.set('accural_month', formData.accrual_month); // Используем поле с опечаткой
+    record.set('name', String(formData.name));
   }
   
+  if (formData.sum !== undefined) {
+    const sum = parseFloat(formData.sum);
+    if (isNaN(sum)) {
+      return response.json(400, {
+        success: false,
+        error: 'Неверный формат суммы'
+      });
+    }
+    record.set('sum', sum);
+  }
+  
+  if (formData.accrual_month !== undefined) {
+    record.set('accural_month', String(formData.accrual_month));
+  }
+  
+  // Сохраняем изменения
   $app.save(record);
 
   return response.json(200, {
     success: true,
+    message: 'Запись "' + record.get('name') + '" успешно обновлена',
     data: {
-      id: record.getString('id'),
-      name: record.getString('name'),
-      sum: record.getFloat('sum'),
-      accural_month: record.getString('accural_month')
-    },
-    message: 'Запись успешно обновлена'
+      id: record.id,
+      name: record.get('name'),
+      sum: record.get('sum'),
+      accural_month: record.get('accural_month')
+    }
   });
 
 } catch (error) {
-  log('[wait-incomes/update] Error:', error);
-  return response.json(400, {
+  if (error.message && error.message.includes('doesn\'t exist')) {
+    return response.json(404, {
+      success: false,
+      error: 'Запись не найдена'
+    });
+  }
+  
+  return response.json(500, {
     success: false,
     error: error.message || 'Ошибка обновления записи'
   });
