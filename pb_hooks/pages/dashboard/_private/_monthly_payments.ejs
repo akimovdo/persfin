@@ -529,6 +529,37 @@ const formatDate = (value) => {
 	</form>
 </dialog>
 
+<!-- Модальное окно подтверждения удаления -->
+<dialog id="confirmDeleteMonthlyPaymentModal" class="modal">
+	<div class="modal-box">
+		<h3 class="font-bold text-lg mb-4">
+			<i class="fas fa-exclamation-triangle text-warning"></i>
+			Подтверждение удаления
+		</h3>
+		<p class="py-4">Вы уверены, что хотите удалить этот шаблон ежемесячного начисления?</p>
+		<p class="text-sm text-base-content/70">Это действие нельзя отменить.</p>
+		<div class="modal-action">
+			<button 
+				type="button" 
+				onclick="document.getElementById('confirmDeleteMonthlyPaymentModal').close()" 
+				class="btn btn-ghost">
+				<i class="fas fa-times"></i>
+				Отмена
+			</button>
+			<button 
+				type="button" 
+				onclick="confirmDeleteMonthlyPayment()" 
+				class="btn btn-error">
+				<i class="fas fa-trash"></i>
+				Удалить
+			</button>
+		</div>
+	</div>
+	<form method="dialog" class="modal-backdrop">
+		<button>Закрыть</button>
+	</form>
+</dialog>
+
 <script>
 // Функция открытия модального окна добавления
 function openAddMonthlyPaymentModal() {
@@ -592,16 +623,15 @@ document.addEventListener('DOMContentLoaded', function() {
 				
 				const result = await response.json();
 				
-				if (!result.success) {
-					throw new Error(result.message || 'Ошибка при создании шаблона');
-				}
-				
-				document.getElementById('addMonthlyPaymentModal').close();
-				window.reloadWithLoader();
-				
-			} catch (error) {
-				alert('Ошибка: ' + error.message);
+			if (!result.success) {
+				throw new Error(result.message || 'Ошибка при создании шаблона');
 			}
+			
+			document.getElementById('addMonthlyPaymentModal').close();
+			window.location.reload();
+		} catch (error) {
+			alert('Ошибка: ' + error.message);
+		}
 		});
 	}
 	
@@ -633,26 +663,26 @@ document.addEventListener('DOMContentLoaded', function() {
 				
 				const result = await response.json();
 				
-				if (!result.success) {
-					throw new Error(result.message || 'Ошибка при обновлении шаблона');
-				}
-				
-				document.getElementById('editMonthlyPaymentModal').close();
-				window.reloadWithLoader();
-				
-			} catch (error) {
-				alert('Ошибка: ' + error.message);
+			if (!result.success) {
+				throw new Error(result.message || 'Ошибка при обновлении шаблона');
 			}
+			
+			document.getElementById('editMonthlyPaymentModal').close();
+			window.location.reload();
+		} catch (error) {
+			alert('Ошибка: ' + error.message);
+		}
 		});
 	}
 });
 
-// Функция удаления шаблона
-async function deleteMonthlyPayment() {
-	if (!confirm('Вы уверены, что хотите удалить этот шаблон?')) {
-		return;
-	}
-	
+// Функция открытия модального окна подтверждения удаления
+function deleteMonthlyPayment() {
+	document.getElementById('confirmDeleteMonthlyPaymentModal').showModal();
+}
+
+// Функция подтверждения удаления шаблона
+async function confirmDeleteMonthlyPayment() {
 	const recordId = document.getElementById('editMonthlyPaymentId').value;
 	
 	try {
@@ -666,9 +696,9 @@ async function deleteMonthlyPayment() {
 			throw new Error(result.message || 'Ошибка при удалении шаблона');
 		}
 		
+		document.getElementById('confirmDeleteMonthlyPaymentModal').close();
 		document.getElementById('editMonthlyPaymentModal').close();
-		window.reloadWithLoader();
-		
+		window.location.reload();
 	} catch (error) {
 		alert('Ошибка: ' + error.message);
 	}

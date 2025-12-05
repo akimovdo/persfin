@@ -117,48 +117,5 @@
     <!-- Глобальные UI компоненты -->
     <%- include('_toast') %>
     <%- include('_confirm_dialog') %>
-    
-    <!-- Индикатор перезагрузки страницы -->
-    <div id="page-reload-overlay" class="hidden fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-[9999] flex items-center justify-center">
-      <div class="bg-base-100 rounded-lg p-8 shadow-2xl text-center max-w-md">
-        <div class="loading loading-spinner loading-lg text-primary mb-4"></div>
-        <h3 class="text-xl font-bold mb-2">Обновление данных</h3>
-        <p class="text-base-content/70">Пожалуйста, подождите. Не закрывайте страницу.</p>
-      </div>
-    </div>
-
-    <script>
-      // Глобальная функция для показа индикатора загрузки
-      window.showPageLoader = function() {
-        const overlay = document.getElementById('page-reload-overlay');
-        if (overlay) {
-          overlay.classList.remove('hidden');
-        }
-      };
-
-      // Глобальная функция для перезагрузки с индикатором
-      window.reloadWithLoader = function(delay = 0) {
-        window.showPageLoader();
-        if (delay > 0) {
-          setTimeout(() => window.location.reload(), delay);
-        } else {
-          window.location.reload();
-        }
-      };
-
-      // Показываем оверлей при начале перезагрузки страницы
-      window.addEventListener('beforeunload', function(e) {
-        window.showPageLoader();
-      });
-
-      // Автоматически показываем оверлей при навигации
-      if (window.navigation) {
-        window.navigation.addEventListener('navigate', function(e) {
-          if (!e.downloadRequest && !e.hashChange) {
-            window.showPageLoader();
-          }
-        });
-      }
-    </script>
   </body>
 </html>

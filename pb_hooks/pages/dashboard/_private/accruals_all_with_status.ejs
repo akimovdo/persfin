@@ -1485,7 +1485,7 @@ try {
 		</div>
 		<div class="modal-action">
 			<form method="dialog">
-				<button class="btn btn-primary" onclick="window.reloadWithLoader()">
+				<button class="btn btn-primary" onclick="window.location.reload()">
 					<i class="fas fa-sync-alt"></i>
 					Обновить страницу
 				</button>
@@ -2136,7 +2136,7 @@ window.loadBankStatements = async function() {
 					`;
 					
 					// Перезагружаем страницу для обновления баланса
-					window.reloadWithLoader();
+					window.location.reload();
 				} else {
 					throw new Error('Выписка готова, но данные не были сохранены');
 				}
@@ -2741,7 +2741,7 @@ window.savePaymentAllocations = async function() {
 		
 		// Закрываем модальное окно и перезагружаем страницу
 		document.getElementById('paymentsModal').close();
-		window.reloadWithLoader();
+		window.location.reload();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -2848,7 +2848,7 @@ async function submitEditWaitIncomeForm() {
 		
 		// Закрываем модальное окно и перезагружаем страницу
 		document.getElementById('editWaitIncomeModal').close();
-		window.reloadWithLoader();
+		window.location.reload();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -2899,7 +2899,7 @@ async function deleteWaitIncome() {
 		
 		// Закрываем модальное окно и перезагружаем страницу
 		document.getElementById('editWaitIncomeModal').close();
-		window.reloadWithLoader();
+		window.location.reload();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -2954,28 +2954,28 @@ document.addEventListener('DOMContentLoaded', function() {
 					body: JSON.stringify(data)
 				});
 				
-				const result = await response.json();
-				
-				if (!result.success) {
-					throw new Error(result.message || 'Ошибка при создании записи');
-				}
-				
-				// Закрываем модальное окно и перезагружаем страницу
-				document.getElementById('addWaitIncomeModal').close();
-				window.reloadWithLoader();
-				
-			} catch (error) {
-				await showNotificationModal({
-					title: 'Ошибка создания',
-					message: error.message || 'Не удалось создать ожидаемый платеж'
-				});
-				btn.disabled = false;
-				btn.innerHTML = '<i class="fas fa-save"></i> Сохранить';
+			const result = await response.json();
+			
+			if (!result.success) {
+				throw new Error(result.message || 'Ошибка при создании записи');
 			}
-		});
-	}
-	
-	// Обработчик отправки формы редактирования ожидаемого платежа
+			
+			// Закрываем модальное окно и перезагружаем страницу
+			document.getElementById('addWaitIncomeModal').close();
+			window.location.reload();
+			
+		} catch (error) {
+			await showNotificationModal({
+				title: 'Ошибка создания',
+				message: error.message || 'Не удалось создать ожидаемый платеж'
+			});
+			btn.disabled = false;
+			btn.innerHTML = '<i class="fas fa-save"></i> Сохранить';
+		}
+	});
+}
+
+// Обработчик отправки формы редактирования ожидаемого платежа
 	const editForm = document.getElementById('editWaitIncomeForm');
 	if (editForm) {
 		editForm.addEventListener('submit', async function(e) {
@@ -3052,17 +3052,11 @@ async function submitAddAccrualForm() {
 		
 		const result = await response.json();
 		
-		await showNotificationModal({
-			title: 'Успех',
-			message: 'Начисление успешно создано',
-			confirmText: 'Понятно'
-		});
-		
 		// Закрываем модальное окно
 		document.getElementById('addAccrualModal').close();
 		
 		// Перезагружаем страницу для обновления данных
-		window.reloadWithLoader();
+		window.location.reload();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -3146,7 +3140,7 @@ async function submitEditAccrualForm() {
 		});
 		
 		document.getElementById('editAccrualModal').close();
-		window.reloadWithLoader();
+		window.location.reload();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -3221,7 +3215,7 @@ async function submitManualPaymentForm(e) {
 		document.getElementById('manualPaymentModal').close();
 		
 		// Перезагружаем страницу для обновления данных
-		window.reloadWithLoader();
+		window.location.reload();
 		
 	} catch (error) {
 		await showNotificationModal({
@@ -3275,7 +3269,7 @@ async function deleteAccrual() {
 		});
 		
 		document.getElementById('editAccrualModal').close();
-		window.reloadWithLoader();
+		window.location.reload();
 		
 	} catch (error) {
 		await showNotificationModal({

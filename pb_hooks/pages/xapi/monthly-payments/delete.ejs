@@ -14,7 +14,7 @@ if (request.method !== 'DELETE') {
 }
 
 try {
-	const id = request.query().get('id');
+	const id = url(request.url).query.id;
 	
 	if (!id) {
 		return response.json(400, {
