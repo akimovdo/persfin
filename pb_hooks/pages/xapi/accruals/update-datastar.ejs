@@ -1,0 +1,76 @@
+<%
+/**
+ * API endpoint для обновления начисления (Datastar версия)
+ * POST /xapi/accruals/update-datastar
+ */
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    datastar.patchSignals(stringify({ editAccrualLoading: false }));
+    datastar.consoleError('Используйте метод POST');
+    return;
+}
+
+try {
+    datastar.patchSignals(stringify({ editAccrualLoading: true }));
+    
+    const signals = datastar.readSignals(request, {
+        '$editAccrualId': '',
+        '$editAccrualName': '',
+        '$editAccrualNumber': '',
+        '$editAccrualPartner': '',
+        '$editAccrualCostItem': '',
+        '$editAccrualSum': '',
+        '$editAccrualRepaymentDate': '',
+        '$editAccrualDescription': '',
+        '$editAccrualForcedClosure': false
+    });
+    
+    console.log('[update-datastar] Received signals:', JSON.stringify(signals));
+    
+    if (!signals['$editAccrualId'] || !signals['$editAccrualName'] || !signals['$editAccrualPartner'] || !signals['$editAccrualCostItem'] || !signals['$editAccrualSum'] || !signals['$editAccrualRepaymentDate']) {
+        datastar.patchSignals(stringify({ editAccrualLoading: false }));
+        datastar.consoleError('Заполните все обязательные поля');
+        return;
+    }
+    
+    const record = $app.findRecordById('accruals', signals['$editAccrualId']);
+    
+    record.set('name', String(signals['$editAccrualName']));
+    record.set('number', signals['$editAccrualNumber'] ? String(signals['$editAccrualNumber']) : '');
+    record.set('partner', String(signals['$editAccrualPartner']));
+    record.set('cost_item', String(signals['$editAccrualCostItem']));
+    record.set('sum', parseFloat(signals['$editAccrualSum']));
+    record.set('repayment_date', String(signals['$editAccrualRepaymentDate']));
+    record.set('description', signals['$editAccrualDescription'] ? String(signals['$editAccrualDescription']) : '');
+    record.set('Forced_closure', Boolean(signals['$editAccrualForcedClosure']));
+    
+    $app.save(record);
+    
+    console.log('[update-datastar] Updated accrual:', record.id);
+    
+    datastar.patchSignals(stringify({ 
+        showEditAccrualModal: false,
+        editAccrualLoading: false,
+        editAccrualId: '',
+        editAccrualName: '',
+        editAccrualNumber: '',
+        editAccrualPartner: '',
+        editAccrualCostItem: '',
+        editAccrualSum: '',
+        editAccrualRepaymentDate: '',
+        editAccrualDescription: '',
+        editAccrualForcedClosure: false
+    }));
+    
+    datastar.executeScript(`
+        alert('Начисление успешно обновлено!');
+        window.location.reload();
+    `);
+    
+} catch (error) {
+    console.error('[update-datastar] Error:', error);
+    datastar.patchSignals(stringify({ editAccrualLoading: false }));
+    datastar.consoleError(error.message || 'Внутренняя ошибка сервера');
+}
+%>

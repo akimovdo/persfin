@@ -1,0 +1,50 @@
+<%
+/**
+ * API endpoint для удаления начисления (Datastar версия)
+ * POST /xapi/accruals/delete-datastar
+ */
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    datastar.patchSignals(stringify({ editAccrualLoading: false }));
+    datastar.consoleError('Используйте метод POST');
+    return;
+}
+
+try {
+    datastar.patchSignals(stringify({ editAccrualLoading: true }));
+    
+    const signals = datastar.readSignals(request, {
+        '$editAccrualId': ''
+    });
+    
+    console.log('[delete-datastar] Received signals:', JSON.stringify(signals));
+    
+    if (!signals['$editAccrualId']) {
+        datastar.patchSignals(stringify({ editAccrualLoading: false }));
+        datastar.consoleError('ID начисления не указан');
+        return;
+    }
+    
+    const record = $app.findRecordById('accruals', signals['$editAccrualId']);
+    $app.delete(record);
+    
+    console.log('[delete-datastar] Deleted accrual:', signals['$editAccrualId']);
+    
+    datastar.patchSignals(stringify({ 
+        showEditAccrualModal: false,
+        showConfirmModal: false,
+        editAccrualLoading: false
+    }));
+    
+    datastar.executeScript(`
+        alert('Начисление успешно удалено!');
+        window.location.reload();
+    `);
+    
+} catch (error) {
+    console.error('[delete-datastar] Error:', error);
+    datastar.patchSignals(stringify({ editAccrualLoading: false }));
+    datastar.consoleError(error.message || 'Внутренняя ошибка сервера');
+}
+%>

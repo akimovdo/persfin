@@ -1,0 +1,65 @@
+<%
+/**
+ * API endpoint для создания ручного платежа (Datastar версия)
+ * POST /xapi/payments/create-manual-datastar
+ */
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    datastar.patchSignals(stringify({ manualPaymentLoading: false }));
+    datastar.consoleError('Используйте метод POST');
+    return;
+}
+
+try {
+    datastar.patchSignals(stringify({ manualPaymentLoading: true }));
+    
+    const signals = datastar.readSignals(request, {
+        '$manualPaymentAccrualId': '',
+        '$manualPaymentSum': '',
+        '$manualPaymentDate': '',
+        '$manualPaymentDescription': ''
+    });
+    
+    console.log('[create-manual-datastar] Received signals:', JSON.stringify(signals));
+    
+    if (!signals['$manualPaymentAccrualId'] || !signals['$manualPaymentSum'] || !signals['$manualPaymentDate']) {
+        datastar.patchSignals(stringify({ manualPaymentLoading: false }));
+        datastar.consoleError('Заполните все обязательные поля');
+        return;
+    }
+    
+    const collection = $app.findCollectionByNameOrId('payments');
+    const record = new Record(collection);
+    
+    record.set('accural', String(signals['$manualPaymentAccrualId']));
+    record.set('sum', parseFloat(signals['$manualPaymentSum']));
+    record.set('date', String(signals['$manualPaymentDate']));
+    record.set('description', signals['$manualPaymentDescription'] ? String(signals['$manualPaymentDescription']) : 'Ручной платёж');
+    
+    $app.save(record);
+    
+    console.log('[create-manual-datastar] Created payment:', record.id);
+    
+    datastar.patchSignals(stringify({ 
+        showManualPaymentModal: false,
+        manualPaymentLoading: false,
+        manualPaymentAccrualId: '',
+        manualPaymentAccrualName: '',
+        manualPaymentBalance: 0,
+        manualPaymentSum: '',
+        manualPaymentDate: '',
+        manualPaymentDescription: ''
+    }));
+    
+    datastar.executeScript(`
+        alert('Платёж успешно создан!');
+        window.location.reload();
+    `);
+    
+} catch (error) {
+    console.error('[create-manual-datastar] Error:', error);
+    datastar.patchSignals(stringify({ manualPaymentLoading: false }));
+    datastar.consoleError(error.message || 'Внутренняя ошибка сервера');
+}
+%>

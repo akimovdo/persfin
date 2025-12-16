@@ -1,0 +1,49 @@
+<%
+/**
+ * API endpoint для удаления ожидаемого дохода (Datastar версия)
+ * POST /xapi/wait-incomes/delete-datastar
+ */
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    datastar.patchSignals(stringify({ editWaitIncomeLoading: false }));
+    datastar.consoleError('Используйте метод POST');
+    return;
+}
+
+try {
+    datastar.patchSignals(stringify({ editWaitIncomeLoading: true }));
+    
+    const signals = datastar.readSignals(request, {
+        '$editWaitIncomeId': ''
+    });
+    
+    console.log('[delete-wait-income-datastar] Received signals:', JSON.stringify(signals));
+    
+    if (!signals['$editWaitIncomeId']) {
+        datastar.patchSignals(stringify({ editWaitIncomeLoading: false }));
+        datastar.consoleError('ID записи не указан');
+        return;
+    }
+    
+    const record = $app.findRecordById('wait_incomes', signals['$editWaitIncomeId']);
+    $app.delete(record);
+    
+    console.log('[delete-wait-income-datastar] Deleted wait income:', signals['$editWaitIncomeId']);
+    
+    datastar.patchSignals(stringify({ 
+        showEditWaitIncomeModal: false,
+        editWaitIncomeLoading: false
+    }));
+    
+    datastar.executeScript(`
+        alert('Ожидаемый платёж успешно удалён!');
+        window.location.reload();
+    `);
+    
+} catch (error) {
+    console.error('[delete-wait-income-datastar] Error:', error);
+    datastar.patchSignals(stringify({ editWaitIncomeLoading: false }));
+    datastar.consoleError(error.message || 'Внутренняя ошибка сервера');
+}
+%>

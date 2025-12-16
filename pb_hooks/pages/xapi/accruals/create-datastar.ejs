@@ -1,0 +1,92 @@
+<%
+/**
+ * API endpoint для создания начисления (Datastar версия)
+ * POST /xapi/accruals/create-datastar
+ * 
+ * Принимает данные из Datastar сигналов и возвращает команды для обновления UI
+ */
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    datastar.patchSignals(stringify({ 
+        addAccrualLoading: false 
+    }));
+    datastar.consoleError('Используйте метод POST');
+    return;
+}
+
+try {
+    // Устанавливаем состояние загрузки
+    datastar.patchSignals(stringify({ 
+        addAccrualLoading: true 
+    }));
+    
+    // Читаем данные из Datastar сигналов (с $ префиксом!)
+    const signals = datastar.readSignals(request, {
+        '$addAccrualName': '',
+        '$addAccrualNumber': '',
+        '$addAccrualPartner': '',
+        '$addAccrualCostItem': '',
+        '$addAccrualSum': '',
+        '$addAccrualRepaymentDate': '',
+        '$addAccrualDescription': ''
+    });
+    
+    console.log('[create-datastar] Received signals:', JSON.stringify(signals));
+    
+    // Валидация обязательных полей (читаем с $ префиксом)
+    if (!signals['$addAccrualName'] || !signals['$addAccrualPartner'] || !signals['$addAccrualCostItem'] || !signals['$addAccrualSum'] || !signals['$addAccrualRepaymentDate']) {
+        datastar.patchSignals(stringify({ 
+            addAccrualLoading: false 
+        }));
+        datastar.consoleError('Заполните все обязательные поля');
+        return;
+    }
+    
+    // Создаем новое начисление
+    const collection = $app.findCollectionByNameOrId('accruals');
+    const record = new Record(collection);
+    
+    // Устанавливаем значения полей
+    record.set('name', String(signals['$addAccrualName']));
+    record.set('number', signals['$addAccrualNumber'] ? String(signals['$addAccrualNumber']) : '');
+    record.set('partner', String(signals['$addAccrualPartner']));
+    record.set('cost_item', String(signals['$addAccrualCostItem']));
+    record.set('sum', parseFloat(signals['$addAccrualSum']));
+    record.set('repayment_date', String(signals['$addAccrualRepaymentDate']));
+    record.set('description', signals['$addAccrualDescription'] ? String(signals['$addAccrualDescription']) : '');
+    record.set('Forced_closure', false);
+    
+    // Сохраняем запись
+    $app.save(record);
+    
+    console.log('[create-datastar] Created accrual:', record.id);
+    
+    // Закрываем модальное окно и очищаем форму
+    datastar.patchSignals(stringify({ 
+        showAddAccrualModal: false,
+        addAccrualLoading: false,
+        addAccrualName: '',
+        addAccrualNumber: '',
+        addAccrualPartner: '',
+        addAccrualCostItem: '',
+        addAccrualSum: '',
+        addAccrualRepaymentDate: '',
+        addAccrualDescription: ''
+    }));
+    
+    // Показываем уведомление об успехе и перезагружаем страницу
+    datastar.executeScript(`
+        alert('Начисление успешно создано!');
+        window.location.reload();
+    `);
+    
+} catch (error) {
+    console.error('[create-datastar] Error:', error);
+    
+    datastar.patchSignals(stringify({ 
+        addAccrualLoading: false 
+    }));
+    datastar.consoleError(error.message || 'Внутренняя ошибка сервера');
+}
+%>

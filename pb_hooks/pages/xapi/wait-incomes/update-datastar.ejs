@@ -1,0 +1,61 @@
+<%
+/**
+ * API endpoint для обновления ожидаемого дохода (Datastar версия)
+ * POST /xapi/wait-incomes/update-datastar
+ */
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    datastar.patchSignals(stringify({ editWaitIncomeLoading: false }));
+    datastar.consoleError('Используйте метод POST');
+    return;
+}
+
+try {
+    datastar.patchSignals(stringify({ editWaitIncomeLoading: true }));
+    
+    const signals = datastar.readSignals(request, {
+        '$editWaitIncomeId': '',
+        '$editWaitIncomeName': '',
+        '$editWaitIncomeSum': '',
+        '$editWaitIncomeMonth': ''
+    });
+    
+    console.log('[update-wait-income-datastar] Received signals:', JSON.stringify(signals));
+    
+    if (!signals['$editWaitIncomeId'] || !signals['$editWaitIncomeName'] || !signals['$editWaitIncomeSum'] || !signals['$editWaitIncomeMonth']) {
+        datastar.patchSignals(stringify({ editWaitIncomeLoading: false }));
+        datastar.consoleError('Заполните все обязательные поля');
+        return;
+    }
+    
+    const record = $app.findRecordById('wait_incomes', signals['$editWaitIncomeId']);
+    
+    record.set('name', String(signals['$editWaitIncomeName']));
+    record.set('sum', parseFloat(signals['$editWaitIncomeSum']));
+    record.set('accrual_month', String(signals['$editWaitIncomeMonth']) + '-01');
+    
+    $app.save(record);
+    
+    console.log('[update-wait-income-datastar] Updated wait income:', record.id);
+    
+    datastar.patchSignals(stringify({ 
+        showEditWaitIncomeModal: false,
+        editWaitIncomeLoading: false,
+        editWaitIncomeId: '',
+        editWaitIncomeName: '',
+        editWaitIncomeSum: '',
+        editWaitIncomeMonth: ''
+    }));
+    
+    datastar.executeScript(`
+        alert('Ожидаемый платёж успешно обновлён!');
+        window.location.reload();
+    `);
+    
+} catch (error) {
+    console.error('[update-wait-income-datastar] Error:', error);
+    datastar.patchSignals(stringify({ editWaitIncomeLoading: false }));
+    datastar.consoleError(error.message || 'Внутренняя ошибка сервера');
+}
+%>

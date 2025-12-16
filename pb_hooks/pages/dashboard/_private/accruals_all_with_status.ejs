@@ -492,7 +492,60 @@ try {
 }
 %>
 
-<section class="space-y-6">
+<section class="space-y-6" data-signals="{
+	showAddAccrualModal: false,
+	addAccrualLoading: false,
+	addAccrualName: '',
+	addAccrualNumber: '',
+	addAccrualPartner: '',
+	addAccrualCostItem: '',
+	addAccrualSum: '',
+	addAccrualRepaymentDate: '',
+	addAccrualDescription: '',
+
+	showEditAccrualModal: false,
+	editAccrualLoading: false,
+	editAccrualId: '',
+	editAccrualName: '',
+	editAccrualNumber: '',
+	editAccrualPartner: '',
+	editAccrualCostItem: '',
+	editAccrualSum: '',
+	editAccrualRepaymentDate: '',
+	editAccrualDescription: '',
+	editAccrualForcedClosure: false,
+
+	showManualPaymentModal: false,
+	manualPaymentLoading: false,
+	manualPaymentAccrualId: '',
+	manualPaymentAccrualName: '',
+	manualPaymentBalance: 0,
+	manualPaymentSum: '',
+	manualPaymentDate: '',
+	manualPaymentDescription: '',
+
+	showAddWaitIncomeModal: false,
+	addWaitIncomeLoading: false,
+	addWaitIncomeName: '',
+	addWaitIncomeSum: '',
+	addWaitIncomeMonth: '',
+
+	showEditWaitIncomeModal: false,
+	editWaitIncomeLoading: false,
+	editWaitIncomeId: '',
+	editWaitIncomeName: '',
+	editWaitIncomeSum: '',
+	editWaitIncomeMonth: '',
+
+	showNotificationModal: false,
+	notificationTitle: '',
+	notificationMessage: '',
+
+	showConfirmModal: false,
+	confirmTitle: '',
+	confirmMessage: '',
+	confirmAction: ''
+}">
 	<header class="space-y-1">
 		<h1 class="text-2xl font-semibold">Все начисления</h1>
 		<p class="text-sm text-base-content/70">Источник: представление <code>accruals_all_with_status</code></p>
@@ -630,11 +683,7 @@ try {
 						<% } else { %>
 							<% for (var i = 0; i < waitIncomes.length; i++) { %>
 								<div class="flex justify-between items-center hover:bg-base-300 cursor-pointer p-2 rounded transition-colors wait-income-item" 
-									 data-id="<%= waitIncomes[i].id %>" 
-									 data-name="<%= waitIncomes[i].name %>" 
-									 data-sum="<%= waitIncomes[i].originalSum %>" 
-									 data-accrual-month="<%= waitIncomes[i].accrualMonth %>"
-									 onclick="openEditWaitIncomeModal(this)">
+									 data-on-click="$editWaitIncomeId = '<%= waitIncomes[i].id %>'; $editWaitIncomeName = '<%= waitIncomes[i].name.replace(/'/g, "\\'") %>'; $editWaitIncomeSum = '<%= waitIncomes[i].originalSum %>'; $editWaitIncomeMonth = '<%= waitIncomes[i].accrualMonth || '' %>'; $showEditWaitIncomeModal = true">
 									<span class="text-base-content/80 truncate mr-2">
 										<%= waitIncomes[i].name %>
 										<% if (waitIncomes[i].accrualMonth) { %>
@@ -654,7 +703,7 @@ try {
 							</div>
 							<div class="mt-3">
 								<button 
-									onclick="openAddWaitIncomeModal()" 
+									data-on-click="$addWaitIncomeName = ''; $addWaitIncomeSum = ''; $addWaitIncomeMonth = ''; $showAddWaitIncomeModal = true"
 									class="btn btn-xs btn-info w-full"
 									id="btnAddWaitIncome">
 									<i class="fas fa-plus"></i>
@@ -729,10 +778,10 @@ try {
 
 	<!-- Фильтры и toggle кнопки -->
 	<div class="flex gap-3 flex-wrap items-end mb-4">
-		<!-- Кнопка добавления начисления -->
+		<!-- Кнопка добавления начисления (Datastar) -->
 		<button 
 			type="button"
-			onclick="openAddAccrualModal()" 
+			data-on-click="$showAddAccrualModal = true" 
 			class="btn btn-sm btn-primary">
 			<i class="fas fa-plus"></i>
 			Добавить начисление
@@ -830,16 +879,7 @@ try {
 							<tr class="align-top <%= getRowClass(item.status) %> accrual-row hover:bg-base-300 cursor-pointer transition-colors" 
 								data-partner-name="<%= item.partnerName || '' %>"
 								data-cost-item="<%= item.costItemName || '' %>"
-								data-accrual-id="<%= item.id %>"
-								data-accrual-name="<%= item.name || '' %>"
-								data-accrual-number="<%= item.number || '' %>"
-								data-accrual-partner="<%= item.partnerId || '' %>"
-								data-accrual-cost-item="<%= item.costItemId || '' %>"
-								data-accrual-sum="<%= item.totalAccrued %>"
-								data-accrual-repayment-date="<%= item.repaymentDate || '' %>"
-								data-accrual-description="<%= item.description || '' %>"
-								data-accrual-forced-closure="<%= item.isForcedClosed ? 'true' : 'false' %>"
-								onclick="openEditAccrualModal(this)">
+								data-on-click="$editAccrualId='<%= item.id %>'; $editAccrualName=`<%= (item.name || '').replace(/`/g, '\\`') %>`; $editAccrualNumber=`<%= (item.number || '').replace(/`/g, '\\`') %>`; $editAccrualPartner='<%= item.partnerId || '' %>'; $editAccrualCostItem='<%= item.costItemId || '' %>'; $editAccrualSum=<%= item.totalAccrued %>; $editAccrualRepaymentDate='<%= item.repaymentDate ? item.repaymentDate.substring(0,10) : '' %>'; $editAccrualDescription=`<%= (item.description || '').replace(/`/g, '\\`').replace(/\n/g, ' ') %>`; $editAccrualForcedClosure=<%= item.isForcedClosed ? 'true' : 'false' %>; $showEditAccrualModal=true">
 								<td class="whitespace-nowrap">
 									<div class="font-semibold"><%= item.name || 'Без названия' %></div>
 									<div class="text-xs text-base-content/60"><%= item.number || 'Без номера' %></div>
@@ -895,7 +935,7 @@ try {
 								<td class="text-center">
 									<button 
 										class="btn btn-xs btn-success"
-										onclick="event.stopPropagation(); openManualPaymentModal('<%= item.id %>', '<%= item.name %>', <%= item.balance %>)">
+										data-on-click="event.stopPropagation(); $manualPaymentAccrualId='<%= item.id %>'; $manualPaymentAccrualName=`<%= (item.name || '').replace(/`/g, '\\`') %>`; $manualPaymentBalance=<%= item.balance %>; $manualPaymentSum=<%= item.balance %>; $manualPaymentDate=new Date().toISOString().split('T')[0]; $manualPaymentDescription=''; $showManualPaymentModal=true">
 										<i class="fas fa-money-bill-wave"></i>
 										Оплатить
 									</button>
@@ -933,16 +973,7 @@ try {
 					<tbody>
 						<% forcedClosedAccruals.forEach(function(item) { %>
 							<tr class="align-top bg-primary/10 hover:bg-primary/20 cursor-pointer transition-colors"
-								data-accrual-id="<%= item.id %>"
-								data-accrual-name="<%= item.name || '' %>"
-								data-accrual-number="<%= item.number || '' %>"
-								data-accrual-partner="<%= item.partnerId || '' %>"
-								data-accrual-cost-item="<%= item.costItemId || '' %>"
-								data-accrual-sum="<%= item.totalAccrued %>"
-								data-accrual-repayment-date="<%= item.repaymentDate || '' %>"
-								data-accrual-description="<%= item.description || '' %>"
-								data-accrual-forced-closure="<%= item.isForcedClosed ? 'true' : 'false' %>"
-								onclick="openEditAccrualModal(this)">
+								data-on-click="$editAccrualId='<%= item.id %>'; $editAccrualName=`<%= (item.name || '').replace(/`/g, '\\`') %>`; $editAccrualNumber=`<%= (item.number || '').replace(/`/g, '\\`') %>`; $editAccrualPartner='<%= item.partnerId || '' %>'; $editAccrualCostItem='<%= item.costItemId || '' %>'; $editAccrualSum=<%= item.totalAccrued %>; $editAccrualRepaymentDate='<%= item.repaymentDate ? item.repaymentDate.substring(0,10) : '' %>'; $editAccrualDescription=`<%= (item.description || '').replace(/`/g, '\\`').replace(/\n/g, ' ') %>`; $editAccrualForcedClosure=<%= item.isForcedClosed ? 'true' : 'false' %>; $showEditAccrualModal=true">
 								<td class="whitespace-nowrap">
 									<div class="font-semibold"><%= item.name || 'Без названия' %></div>
 									<div class="text-xs text-base-content/60"><%= item.number || 'Без номера' %></div>
@@ -1009,16 +1040,7 @@ try {
 					<tbody>
 						<% fullyPaidAccruals.forEach(function(item) { %>
 							<tr class="align-top bg-success/10 hover:bg-success/20 cursor-pointer transition-colors"
-								data-accrual-id="<%= item.id %>"
-								data-accrual-name="<%= item.name || '' %>"
-								data-accrual-number="<%= item.number || '' %>"
-								data-accrual-partner="<%= item.partnerId || '' %>"
-								data-accrual-cost-item="<%= item.costItemId || '' %>"
-								data-accrual-sum="<%= item.totalAccrued %>"
-								data-accrual-repayment-date="<%= item.repaymentDate || '' %>"
-								data-accrual-description="<%= item.description || '' %>"
-								data-accrual-forced-closure="<%= item.isForcedClosed ? 'true' : 'false' %>"
-								onclick="openEditAccrualModal(this)">
+								data-on-click="$editAccrualId='<%= item.id %>'; $editAccrualName=`<%= (item.name || '').replace(/`/g, '\\`') %>`; $editAccrualNumber=`<%= (item.number || '').replace(/`/g, '\\`') %>`; $editAccrualPartner='<%= item.partnerId || '' %>'; $editAccrualCostItem='<%= item.costItemId || '' %>'; $editAccrualSum=<%= item.totalAccrued %>; $editAccrualRepaymentDate='<%= item.repaymentDate ? item.repaymentDate.substring(0,10) : '' %>'; $editAccrualDescription=`<%= (item.description || '').replace(/`/g, '\\`').replace(/\n/g, ' ') %>`; $editAccrualForcedClosure=<%= item.isForcedClosed ? 'true' : 'false' %>; $showEditAccrualModal=true">
 								<td class="whitespace-nowrap">
 									<div class="font-semibold"><%= item.name || 'Без названия' %></div>
 									<div class="text-xs text-base-content/60"><%= item.number || 'Без номера' %></div>
@@ -1056,14 +1078,14 @@ try {
 	</div>
 </section>
 
-<!-- Модальное окно для добавления начисления -->
-<dialog id="addAccrualModal" class="modal">
+<!-- Модальное окно для добавления начисления (Datastar) -->
+<div data-show="$showAddAccrualModal" data-class="{'modal-open': $showAddAccrualModal}" class="modal">
 	<div class="modal-box max-w-2xl">
 		<h3 class="font-bold text-lg mb-4">
 			<i class="fas fa-plus-circle text-primary"></i>
 			Добавить начисление
 		</h3>
-		<form id="addAccrualForm" class="space-y-4">
+		<form data-on-submit="@post('/xapi/accruals/create-datastar')" class="space-y-4">
 			<!-- Название -->
 			<div class="form-control">
 				<label class="label">
@@ -1071,7 +1093,7 @@ try {
 				</label>
 				<input 
 					type="text" 
-					name="name" 
+					data-bind="$addAccrualName"
 					class="input input-bordered w-full" 
 					placeholder="Название начисления"
 					required />
@@ -1084,7 +1106,7 @@ try {
 				</label>
 				<input 
 					type="text" 
-					name="number" 
+					data-bind="$addAccrualNumber"
 					class="input input-bordered w-full" 
 					placeholder="Номер документа" />
 			</div>
@@ -1096,7 +1118,7 @@ try {
 						<span class="label-text">Партнёр <span class="text-error">*</span></span>
 					</label>
 					<select 
-						name="partner" 
+						data-bind="$addAccrualPartner"
 						class="select select-bordered w-full"
 						required>
 						<option value="">Выберите партнёра</option>
@@ -1112,7 +1134,7 @@ try {
 						<span class="label-text">Статья расходов <span class="text-error">*</span></span>
 					</label>
 					<select 
-						name="cost_item" 
+						data-bind="$addAccrualCostItem"
 						class="select select-bordered w-full"
 						required>
 						<option value="">Выберите статью</option>
@@ -1131,7 +1153,7 @@ try {
 					</label>
 					<input 
 						type="number" 
-						name="sum" 
+						data-bind="$addAccrualSum"
 						class="input input-bordered w-full" 
 						placeholder="0.00"
 						step="0.01"
@@ -1146,7 +1168,7 @@ try {
 					</label>
 					<input 
 						type="date" 
-						name="repayment_date" 
+						data-bind="$addAccrualRepaymentDate"
 						class="input input-bordered w-full"
 						required />
 				</div>
@@ -1158,7 +1180,7 @@ try {
 					<span class="label-text">Описание</span>
 				</label>
 				<textarea 
-					name="description" 
+					data-bind="$addAccrualDescription"
 					class="textarea textarea-bordered w-full" 
 					rows="3"
 					placeholder="Дополнительная информация"></textarea>
@@ -1168,35 +1190,36 @@ try {
 			<div class="modal-action">
 				<button 
 					type="button" 
-					onclick="document.getElementById('addAccrualModal').close()" 
+					data-on-click="$showAddAccrualModal = false; $addAccrualName=''; $addAccrualNumber=''; $addAccrualPartner=''; $addAccrualCostItem=''; $addAccrualSum=''; $addAccrualRepaymentDate=''; $addAccrualDescription=''"
 					class="btn btn-ghost">
 					<i class="fas fa-times"></i>
 					Отмена
 				</button>
 				<button 
 					type="submit" 
-					class="btn btn-primary">
-					<i class="fas fa-save"></i>
-					Сохранить
+					class="btn btn-primary"
+					data-attr-disabled="$addAccrualLoading">
+					<span data-show="$addAccrualLoading" class="loading loading-spinner loading-sm"></span>
+					<i data-show="!$addAccrualLoading" class="fas fa-save"></i>
+					<span data-text="$addAccrualLoading ? 'Сохранение...' : 'Сохранить'"></span>
 				</button>
 			</div>
 		</form>
 	</div>
-	<form method="dialog" class="modal-backdrop">
+	<div class="modal-backdrop" data-on-click="$showAddAccrualModal = false">
 		<button>Закрыть</button>
-	</form>
-</dialog>
+	</div>
+</div>
 
 <!-- Модальное окно для редактирования начисления -->
-<dialog id="editAccrualModal" class="modal">
+<!-- Модальное окно для редактирования начисления (Datastar) -->
+<div data-show="$showEditAccrualModal" data-class="{'modal-open': $showEditAccrualModal}" class="modal">
 	<div class="modal-box max-w-2xl">
 		<h3 class="font-bold text-lg mb-4">
 			<i class="fas fa-edit text-primary"></i>
 			Редактировать начисление
 		</h3>
-		<form id="editAccrualForm" class="space-y-4">
-			<input type="hidden" name="id" id="editAccrualId" />
-			
+		<form data-on-submit="@post('/xapi/accruals/update-datastar')" class="space-y-4">
 			<!-- Название -->
 			<div class="form-control">
 				<label class="label">
@@ -1204,8 +1227,7 @@ try {
 				</label>
 				<input 
 					type="text" 
-					name="name" 
-					id="editAccrualName"
+					data-bind="$editAccrualName"
 					class="input input-bordered w-full" 
 					placeholder="Название начисления"
 					required />
@@ -1218,8 +1240,7 @@ try {
 				</label>
 				<input 
 					type="text" 
-					name="number" 
-					id="editAccrualNumber"
+					data-bind="$editAccrualNumber"
 					class="input input-bordered w-full" 
 					placeholder="Номер документа" />
 			</div>
@@ -1231,8 +1252,7 @@ try {
 						<span class="label-text">Партнёр <span class="text-error">*</span></span>
 					</label>
 					<select 
-						name="partner" 
-						id="editAccrualPartner"
+						data-bind="$editAccrualPartner"
 						class="select select-bordered w-full"
 						required>
 						<option value="">Выберите партнёра</option>
@@ -1248,8 +1268,7 @@ try {
 						<span class="label-text">Статья расходов <span class="text-error">*</span></span>
 					</label>
 					<select 
-						name="cost_item" 
-						id="editAccrualCostItem"
+						data-bind="$editAccrualCostItem"
 						class="select select-bordered w-full"
 						required>
 						<option value="">Выберите статью</option>
@@ -1268,8 +1287,7 @@ try {
 					</label>
 					<input 
 						type="number" 
-						name="sum" 
-						id="editAccrualSum"
+						data-bind="$editAccrualSum"
 						class="input input-bordered w-full" 
 						placeholder="0.00"
 						step="0.01"
@@ -1284,8 +1302,7 @@ try {
 					</label>
 					<input 
 						type="date" 
-						name="repayment_date" 
-						id="editAccrualRepaymentDate"
+						data-bind="$editAccrualRepaymentDate"
 						class="input input-bordered w-full"
 						required />
 				</div>
@@ -1297,8 +1314,7 @@ try {
 					<span class="label-text">Описание</span>
 				</label>
 				<textarea 
-					name="description" 
-					id="editAccrualDescription"
+					data-bind="$editAccrualDescription"
 					class="textarea textarea-bordered w-full" 
 					rows="3"
 					placeholder="Дополнительная информация"></textarea>
@@ -1309,8 +1325,7 @@ try {
 				<label class="label cursor-pointer justify-start gap-2">
 					<input 
 						type="checkbox" 
-						name="Forced_closure" 
-						id="editAccrualForcedClosure"
+						data-bind="$editAccrualForcedClosure"
 						class="checkbox checkbox-primary" />
 					<span class="label-text">Принудительно закрыть</span>
 				</label>
@@ -1320,31 +1335,32 @@ try {
 			<div class="modal-action">
 				<button 
 					type="button" 
-					onclick="deleteAccrual()" 
-					class="btn btn-error mr-auto">
+					data-on-click="@post('/xapi/accruals/delete-datastar')"
+					class="btn btn-error mr-auto"
+					data-attr-disabled="$editAccrualLoading">
 					<i class="fas fa-trash"></i>
 					Удалить
 				</button>
 				<button 
 					type="button" 
-					onclick="document.getElementById('editAccrualModal').close()" 
+					data-on-click="$showEditAccrualModal = false"
 					class="btn btn-ghost">
 					<i class="fas fa-times"></i>
 					Отмена
 				</button>
 				<button 
 					type="submit" 
-					class="btn btn-primary">
-					<i class="fas fa-save"></i>
-					Сохранить
+					class="btn btn-primary"
+					data-attr-disabled="$editAccrualLoading">
+					<span data-show="$editAccrualLoading" class="loading loading-spinner loading-sm"></span>
+					<i data-show="!$editAccrualLoading" class="fas fa-save"></i>
+					<span data-text="$editAccrualLoading ? 'Сохранение...' : 'Сохранить'"></span>
 				</button>
 			</div>
 		</form>
 	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button>Закрыть</button>
-	</form>
-</dialog>
+	<div class="modal-backdrop" data-on-click="$showEditAccrualModal = false"></div>
+</div>
 
 <!-- Модальное окно для разнесения платежей -->
 <dialog id="paymentsModal" class="modal">
@@ -1381,34 +1397,30 @@ try {
 	</form>
 </dialog>
 
-<!-- Универсальное модальное окно уведомления -->
-<dialog id="notificationModal" class="modal">
+<!-- Универсальное модальное окно уведомления (Datastar) -->
+<div data-show="$showNotificationModal" data-class="{'modal-open': $showNotificationModal}" class="modal">
 	<div class="modal-box">
-		<h3 class="font-bold text-lg mb-2" id="notificationModalTitle">Сообщение</h3>
-		<p class="py-2 text-base" id="notificationModalMessage"></p>
+		<h3 class="font-bold text-lg mb-2" data-text="$notificationTitle">Сообщение</h3>
+		<p class="py-2 text-base" data-text="$notificationMessage"></p>
 		<div class="modal-action">
-			<button type="button" class="btn btn-primary" id="notificationModalConfirmBtn">Понятно</button>
+			<button type="button" class="btn btn-primary" data-on-click="$showNotificationModal = false">Понятно</button>
 		</div>
 	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button type="submit">Закрыть</button>
-	</form>
-</dialog>
+	<div class="modal-backdrop" data-on-click="$showNotificationModal = false"></div>
+</div>
 
-<!-- Подтверждение действия -->
-<dialog id="confirmationModal" class="modal">
+<!-- Подтверждение действия (Datastar) -->
+<div data-show="$showConfirmModal" data-class="{'modal-open': $showConfirmModal}" class="modal">
 	<div class="modal-box">
-		<h3 class="font-bold text-lg mb-2" id="confirmationModalTitle">Подтверждение</h3>
-		<p class="py-2 text-base" id="confirmationModalMessage"></p>
+		<h3 class="font-bold text-lg mb-2" data-text="$confirmTitle">Подтверждение</h3>
+		<p class="py-2 text-base" data-text="$confirmMessage"></p>
 		<div class="modal-action flex gap-2">
-			<button type="button" class="btn" id="confirmationModalCancelBtn">Отмена</button>
-			<button type="button" class="btn btn-error" id="confirmationModalConfirmBtn">Подтвердить</button>
+			<button type="button" class="btn" data-on-click="$showConfirmModal = false">Отмена</button>
+			<button type="button" class="btn btn-error" data-on-click="eval($confirmAction); $showConfirmModal = false">Подтвердить</button>
 		</div>
 	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button type="submit">Закрыть</button>
-	</form>
-</dialog>
+	<div class="modal-backdrop" data-on-click="$showConfirmModal = false"></div>
+</div>
 
 <!-- Модальное окно для выбора начисления или ожидаемого поступления -->
 <dialog id="selectorModal" class="modal">
@@ -1494,18 +1506,19 @@ try {
 	</div>
 </dialog>
 
-<!-- Модальное окно добавления ожидаемого платежа -->
-<dialog id="addWaitIncomeModal" class="modal">
+<!-- Модальное окно добавления ожидаемого платежа (Datastar) -->
+<div data-show="$showAddWaitIncomeModal" data-class="{'modal-open': $showAddWaitIncomeModal}" class="modal">
 	<div class="modal-box">
-		<form method="dialog">
-			<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-		</form>
+		<button 
+			type="button"
+			data-on-click="$showAddWaitIncomeModal = false"
+			class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
 		<h3 class="font-bold text-lg mb-4">
 			<i class="fas fa-plus text-info"></i>
 			Добавить ожидаемый платеж
 		</h3>
 		
-		<form id="addWaitIncomeForm" class="space-y-4">
+		<form data-on-submit="@post('/xapi/wait-incomes/create-datastar')" class="space-y-4">
 			<!-- Название -->
 			<div class="form-control">
 				<label class="label">
@@ -1513,8 +1526,7 @@ try {
 				</label>
 				<input 
 					type="text" 
-					id="waitIncomeName" 
-					name="name"
+					data-bind="$addWaitIncomeName"
 					placeholder="Например: ООО Рога и копыта"
 					class="input input-bordered w-full" 
 					required />
@@ -1525,17 +1537,16 @@ try {
 				<label class="label">
 					<span class="label-text">Сумма <span class="text-error">*</span></span>
 				</label>
-				<div class="input-group">
+				<div class="join w-full">
 					<input 
 						type="number" 
-						id="waitIncomeSum" 
-						name="sum"
+						data-bind="$addWaitIncomeSum"
 						placeholder="100000"
 						step="0.01"
 						min="0"
-						class="input input-bordered w-full" 
+						class="input input-bordered w-full join-item" 
 						required />
-					<span class="input-group-text">₽</span>
+					<span class="btn join-item no-animation">₽</span>
 				</div>
 				<label class="label">
 					<span class="label-text-alt">Введите сумму без учета налогов (13% будет вычтено автоматически)</span>
@@ -1549,43 +1560,46 @@ try {
 				</label>
 				<input 
 					type="month" 
-					id="waitIncomeMonth" 
-					name="accrual_month"
+					data-bind="$addWaitIncomeMonth"
 					class="input input-bordered w-full" 
 					required />
 			</div>
 			
 			<!-- Кнопки -->
 			<div class="modal-action">
-				<button type="button" onclick="document.getElementById('addWaitIncomeModal').close()" class="btn btn-ghost">
+				<button 
+					type="button" 
+					data-on-click="$showAddWaitIncomeModal = false"
+					class="btn btn-ghost">
 					Отмена
 				</button>
-				<button type="submit" class="btn btn-info" id="btnSubmitWaitIncome">
-					<i class="fas fa-save"></i>
-					Сохранить
+				<button 
+					type="submit" 
+					class="btn btn-info"
+					data-attr-disabled="$addWaitIncomeLoading">
+					<span data-show="$addWaitIncomeLoading" class="loading loading-spinner loading-sm"></span>
+					<i data-show="!$addWaitIncomeLoading" class="fas fa-save"></i>
+					<span data-text="$addWaitIncomeLoading ? 'Сохранение...' : 'Сохранить'"></span>
 				</button>
 			</div>
 		</form>
 	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button>close</button>
-	</form>
-</dialog>
+	<div class="modal-backdrop" data-on-click="$showAddWaitIncomeModal = false"></div>
+</div>
 
-<!-- Модальное окно редактирования ожидаемого платежа -->
-<dialog id="editWaitIncomeModal" class="modal">
+<!-- Модальное окно редактирования ожидаемого платежа (Datastar) -->
+<div data-show="$showEditWaitIncomeModal" data-class="{'modal-open': $showEditWaitIncomeModal}" class="modal">
 	<div class="modal-box">
-		<form method="dialog">
-			<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-		</form>
+		<button 
+			type="button"
+			data-on-click="$showEditWaitIncomeModal = false"
+			class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
 		<h3 class="font-bold text-lg mb-4">
 			<i class="fas fa-edit text-warning"></i>
 			Редактировать ожидаемый платеж
 		</h3>
 		
-		<form id="editWaitIncomeForm" class="space-y-4">
-			<input type="hidden" id="editWaitIncomeId" name="id" />
-			
+		<form data-on-submit="@post('/xapi/wait-incomes/update-datastar')" class="space-y-4">
 			<!-- Название -->
 			<div class="form-control">
 				<label class="label">
@@ -1593,8 +1607,7 @@ try {
 				</label>
 				<input 
 					type="text" 
-					id="editWaitIncomeName" 
-					name="name"
+					data-bind="$editWaitIncomeName"
 					placeholder="Например: ООО Рога и копыта"
 					class="input input-bordered w-full" 
 					required />
@@ -1605,17 +1618,16 @@ try {
 				<label class="label">
 					<span class="label-text">Сумма <span class="text-error">*</span></span>
 				</label>
-				<div class="input-group">
+				<div class="join w-full">
 					<input 
 						type="number" 
-						id="editWaitIncomeSum" 
-						name="sum"
+						data-bind="$editWaitIncomeSum"
 						placeholder="100000"
 						step="0.01"
 						min="0"
-						class="input input-bordered w-full" 
+						class="input input-bordered w-full join-item" 
 						required />
-					<span class="input-group-text">₽</span>
+					<span class="btn join-item no-animation">₽</span>
 				</div>
 				<label class="label">
 					<span class="label-text-alt">Введите сумму без учета налогов (13% будет вычтено автоматически)</span>
@@ -1629,53 +1641,60 @@ try {
 				</label>
 				<input 
 					type="month" 
-					id="editWaitIncomeMonth" 
-					name="accrual_month"
+					data-bind="$editWaitIncomeMonth"
 					class="input input-bordered w-full" 
 					required />
 			</div>
 			
 			<!-- Кнопки -->
 			<div class="modal-action">
-				<button type="button" onclick="deleteWaitIncome()" class="btn btn-error btn-outline" id="btnDeleteWaitIncome">
+				<button 
+					type="button" 
+					data-on-click="@post('/xapi/wait-incomes/delete-datastar')"
+					class="btn btn-error btn-outline"
+					data-attr-disabled="$editWaitIncomeLoading">
 					<i class="fas fa-trash"></i>
 					Удалить
 				</button>
-				<button type="button" onclick="document.getElementById('editWaitIncomeModal').close()" class="btn btn-ghost">
+				<button 
+					type="button" 
+					data-on-click="$showEditWaitIncomeModal = false"
+					class="btn btn-ghost">
 					Отмена
 				</button>
-				<button type="submit" class="btn btn-warning" id="btnEditWaitIncome">
-					<i class="fas fa-save"></i>
-					Сохранить изменения
+				<button 
+					type="submit" 
+					class="btn btn-warning"
+					data-attr-disabled="$editWaitIncomeLoading">
+					<span data-show="$editWaitIncomeLoading" class="loading loading-spinner loading-sm"></span>
+					<i data-show="!$editWaitIncomeLoading" class="fas fa-save"></i>
+					<span data-text="$editWaitIncomeLoading ? 'Сохранение...' : 'Сохранить изменения'"></span>
 				</button>
 			</div>
 		</form>
 	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button>close</button>
-	</form>
-</dialog>
+	<div class="modal-backdrop" data-on-click="$showEditWaitIncomeModal = false"></div>
+</div>
 
-<!-- Модальное окно для ручного платежа -->
-<dialog id="manualPaymentModal" class="modal">
+<!-- Модальное окно для ручного платежа (Datastar) -->
+<div data-show="$showManualPaymentModal" data-class="{'modal-open': $showManualPaymentModal}" class="modal">
 	<div class="modal-box max-w-2xl">
-		<form method="dialog">
-			<button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-		</form>
+		<button 
+			type="button"
+			data-on-click="$showManualPaymentModal = false"
+			class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
 		<h3 class="font-bold text-lg mb-4">
 			<i class="fas fa-money-bill-wave text-success"></i>
 			Ручной платеж
 		</h3>
 		
-		<form id="manualPaymentForm" class="space-y-4">
-			<input type="hidden" id="manualPaymentAccrualId" name="accural" />
-			
+		<form data-on-submit="@post('/xapi/payments/create-manual-datastar')" class="space-y-4">
 			<!-- Информация о начислении -->
 			<div class="alert alert-info">
 				<i class="fas fa-info-circle"></i>
 				<div>
-					<p class="font-semibold" id="manualPaymentAccrualName">—</p>
-					<p class="text-sm">Остаток к оплате: <span class="font-bold" id="manualPaymentBalance">—</span></p>
+					<p class="font-semibold" data-text="$manualPaymentAccrualName || '—'"></p>
+					<p class="text-sm">Остаток к оплате: <span class="font-bold" data-text="$manualPaymentBalance.toLocaleString('ru-RU') + ' ₽'"></span></p>
 				</div>
 			</div>
 			
@@ -1685,17 +1704,16 @@ try {
 					<label class="label">
 						<span class="label-text">Сумма платежа <span class="text-error">*</span></span>
 					</label>
-					<div class="input-group">
+					<div class="join w-full">
 						<input 
 							type="number" 
-							id="manualPaymentSum" 
-							name="sum"
+							data-bind="$manualPaymentSum"
 							placeholder="0.00"
 							step="0.01"
 							min="0.01"
-							class="input input-bordered w-full" 
+							class="input input-bordered w-full join-item" 
 							required />
-						<span class="input-group-text">₽</span>
+						<span class="btn join-item no-animation">₽</span>
 					</div>
 				</div>
 				
@@ -1706,8 +1724,7 @@ try {
 					</label>
 					<input 
 						type="date" 
-						id="manualPaymentDate" 
-						name="date"
+						data-bind="$manualPaymentDate"
 						class="input input-bordered w-full" 
 						required />
 				</div>
@@ -1719,47 +1736,34 @@ try {
 					<span class="label-text">Описание</span>
 				</label>
 				<textarea 
-					id="manualPaymentDescription" 
-					name="description"
+					data-bind="$manualPaymentDescription"
 					class="textarea textarea-bordered w-full" 
 					rows="2"
 					placeholder="Дополнительная информация о платеже"></textarea>
 			</div>
 			
-			<!-- Загрузка чеков -->
-			<div class="form-control">
-				<label class="label">
-					<span class="label-text">Чеки / Подтверждения</span>
-				</label>
-				<input 
-					type="file" 
-					id="manualPaymentReceipts" 
-					name="receipt"
-					class="file-input file-input-bordered w-full"
-					accept="image/*,.pdf"
-					multiple />
-				<label class="label">
-					<span class="label-text-alt">Можно загрузить несколько файлов (фото чеков, PDF документы)</span>
-				</label>
-			</div>
-			
 			<!-- Кнопки -->
 			<div class="modal-action">
-				<button type="button" onclick="document.getElementById('manualPaymentModal').close()" class="btn btn-ghost">
+				<button 
+					type="button" 
+					data-on-click="$showManualPaymentModal = false"
+					class="btn btn-ghost">
 					<i class="fas fa-times"></i>
 					Отмена
 				</button>
-				<button type="submit" class="btn btn-success" id="btnSubmitManualPayment">
-					<i class="fas fa-save"></i>
-					Создать платеж
+				<button 
+					type="submit" 
+					class="btn btn-success"
+					data-attr-disabled="$manualPaymentLoading">
+					<span data-show="$manualPaymentLoading" class="loading loading-spinner loading-sm"></span>
+					<i data-show="!$manualPaymentLoading" class="fas fa-save"></i>
+					<span data-text="$manualPaymentLoading ? 'Создание...' : 'Создать платеж'"></span>
 				</button>
 			</div>
 		</form>
 	</div>
-	<form method="dialog" class="modal-backdrop">
-		<button>close</button>
-	</form>
-</dialog>
+	<div class="modal-backdrop" data-on-click="$showManualPaymentModal = false"></div>
+</div>
 
 <script>
 // Вспомогательные модальные окна для уведомлений и подтверждений
@@ -2753,163 +2757,7 @@ window.savePaymentAllocations = async function() {
 	}
 }
 
-function openAddWaitIncomeModal() {
-	// Устанавливаем текущий месяц по умолчанию
-	const now = new Date();
-	const currentMonth = now.toISOString().substring(0, 7); // YYYY-MM формат
-	document.getElementById('waitIncomeMonth').value = currentMonth;
-	
-	// Очищаем форму
-	document.getElementById('addWaitIncomeForm').reset();
-	document.getElementById('waitIncomeMonth').value = currentMonth;
-	
-	// Показываем модальное окно
-	document.getElementById('addWaitIncomeModal').showModal();
-}
-
-async function openEditWaitIncomeModal(element) {
-	// Получаем данные из data-атрибутов
-	const id = element.dataset.id;
-	const name = element.dataset.name;
-	const sum = element.dataset.sum;
-	const accrualMonth = element.dataset.accrualMonth;
-	
-	// Проверяем существование элементов формы
-	const formElements = {
-		editWaitIncomeId: document.getElementById('editWaitIncomeId'),
-		editWaitIncomeName: document.getElementById('editWaitIncomeName'),
-		editWaitIncomeSum: document.getElementById('editWaitIncomeSum'),
-		editWaitIncomeMonth: document.getElementById('editWaitIncomeMonth'),
-		editWaitIncomeModal: document.getElementById('editWaitIncomeModal'),
-		btnEditWaitIncome: document.getElementById('btnEditWaitIncome'),
-		btnDeleteWaitIncome: document.getElementById('btnDeleteWaitIncome')
-	};
-	
-	// Проверяем, что все элементы найдены
-	const missingElements = Object.entries(formElements)
-		.filter(([key, element]) => !element)
-		.map(([key]) => key);
-	
-	if (missingElements.length > 0) {
-		await showNotificationModal({
-			title: 'Ошибка',
-			message: 'Не найдены элементы формы: ' + missingElements.join(', ')
-		});
-		return;
-	}
-	
-	// Заполняем форму
-	document.getElementById('editWaitIncomeId').value = id;
-	document.getElementById('editWaitIncomeName').value = name;
-	document.getElementById('editWaitIncomeSum').value = sum;
-	
-	// Преобразуем дату из YYYY-MM-DD в YYYY-MM для input[type="month"]
-	const monthValue = accrualMonth ? accrualMonth.substring(0, 7) : '';
-	document.getElementById('editWaitIncomeMonth').value = monthValue;
-	
-	// Показываем модальное окно
-	document.getElementById('editWaitIncomeModal').showModal();
-}
-
-async function submitEditWaitIncomeForm() {
-	const btn = document.getElementById('btnEditWaitIncome');
-	btn.disabled = true;
-	btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Сохранение...';
-	
-	try {
-		const id = document.getElementById('editWaitIncomeId').value;
-		const name = document.getElementById('editWaitIncomeName').value;
-		const sum = parseFloat(document.getElementById('editWaitIncomeSum').value);
-		const accrualMonth = document.getElementById('editWaitIncomeMonth').value;
-		
-		const data = {
-			name: name,
-			sum: sum,
-			accrual_month: accrualMonth + '-01' // Добавляем день для полной даты
-		};
-		
-		const response = await fetch(`/xapi/wait-incomes/update?id=${id}`, {
-			method: 'PATCH',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify(data)
-		});
-		
-		const result = await response.json();
-		
-		if (!response.ok) {
-			throw new Error(result.error || result.message || 'Ошибка при обновлении ожидаемого платежа');
-		}
-		
-		if (!result.success) {
-			throw new Error(result.error || 'Ошибка при обновлении ожидаемого платежа');
-		}
-		
-		// Закрываем модальное окно и перезагружаем страницу
-		document.getElementById('editWaitIncomeModal').close();
-		window.location.reload();
-		
-	} catch (error) {
-		await showNotificationModal({
-			title: 'Ошибка обновления',
-			message: error.message || 'Не удалось обновить ожидаемый платеж'
-		});
-		btn.disabled = false;
-		btn.innerHTML = '<i class="fas fa-save"></i> Сохранить изменения';
-	}
-}
-
-async function deleteWaitIncome() {
-	const confirmed = await showConfirmationModal({
-		title: 'Удаление ожидаемого платежа',
-		message: 'Вы уверены, что хотите удалить этот ожидаемый платеж?',
-		confirmText: 'Удалить',
-		cancelText: 'Отмена'
-	});
-
-	if (!confirmed) {
-		return;
-	}
-
-	const btn = document.getElementById('btnDeleteWaitIncome');
-	const originalText = btn.innerHTML;
-	btn.disabled = true;
-	btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Удаление...';
-
-	try {
-		const id = document.getElementById('editWaitIncomeId').value;
-		
-		const response = await fetch(`/xapi/wait-incomes/delete-simple?id=${id}`, {
-			method: 'DELETE',
-			headers: {
-				'Content-Type': 'application/json',
-			}
-		});
-		
-		const result = await response.json();
-		
-		if (!response.ok) {
-			throw new Error(result.error || result.message || 'Ошибка при удалении ожидаемого платежа');
-		}
-		
-		if (!result.success) {
-			throw new Error(result.error || 'Ошибка при удалении ожидаемого платежа');
-		}
-		
-		// Закрываем модальное окно и перезагружаем страницу
-		document.getElementById('editWaitIncomeModal').close();
-		window.location.reload();
-		
-	} catch (error) {
-		await showNotificationModal({
-			title: 'Ошибка удаления',
-			message: error.message || 'Не удалось удалить ожидаемый платеж'
-		});
-		btn.disabled = false;
-		btn.innerHTML = originalText;
-	}
-}
+// Функции для wait income модалок УДАЛЕНЫ - теперь используется Datastar
 
 // Обработчик отправки формы добавления ожидаемого платежа
 document.addEventListener('DOMContentLoaded', function() {
@@ -2984,14 +2832,7 @@ document.addEventListener('DOMContentLoaded', function() {
 		});
 	}
 	
-	// Обработчик отправки формы добавления начисления
-	const addAccrualForm = document.getElementById('addAccrualForm');
-	if (addAccrualForm) {
-		addAccrualForm.addEventListener('submit', async function(e) {
-			e.preventDefault();
-			await submitAddAccrualForm();
-		});
-	}
+	// Обработчик отправки формы добавления начисления - УДАЛЕНО (Datastar)
 	
 	// Обработчик отправки формы редактирования начисления
 	const editAccrualForm = document.getElementById('editAccrualForm');
@@ -3010,273 +2851,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });</script>
 
 <script>
-// Функция открытия модального окна добавления начисления
-function openAddAccrualModal() {
-	const modal = document.getElementById('addAccrualModal');
-	if (modal) {
-		// Очистка формы
-		document.getElementById('addAccrualForm').reset();
-		modal.showModal();
-	}
-}
-
-// Функция отправки формы добавления начисления
-async function submitAddAccrualForm() {
-	const form = document.getElementById('addAccrualForm');
-	const formData = new FormData(form);
-	
-	// Конвертируем FormData в объект
-	const data = {
-		name: formData.get('name'),
-		number: formData.get('number') || '',
-		partner: formData.get('partner'),
-		cost_item: formData.get('cost_item'),
-		sum: parseFloat(formData.get('sum')),
-		repayment_date: formData.get('repayment_date'),
-		description: formData.get('description') || ''
-	};
-	
-	try {
-		const response = await fetch('/xapi/accruals/create-simple', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify(data)
-		});
-		
-		if (!response.ok) {
-			const errorData = await response.json();
-			throw new Error(errorData.message || 'Ошибка при создании начисления');
-		}
-		
-		const result = await response.json();
-		
-		// Закрываем модальное окно
-		document.getElementById('addAccrualModal').close();
-		
-		// Перезагружаем страницу для обновления данных
-		window.location.reload();
-		
-	} catch (error) {
-		await showNotificationModal({
-			title: 'Ошибка',
-			message: error.message || 'Не удалось создать начисление',
-			confirmText: 'Понятно'
-		});
-	}
-}
-
-// Функция открытия модального окна редактирования начисления
-function openEditAccrualModal(rowElement) {
-	const modal = document.getElementById('editAccrualModal');
-	if (!modal) return;
-	
-	// Функция для преобразования даты в формат YYYY-MM-DD
-	const formatDateForInput = (dateStr) => {
-		if (!dateStr) return '';
-		try {
-			const date = new Date(dateStr);
-			const year = date.getFullYear();
-			const month = String(date.getMonth() + 1).padStart(2, '0');
-			const day = String(date.getDate()).padStart(2, '0');
-			return `${year}-${month}-${day}`;
-		} catch (e) {
-			return dateStr.split(' ')[0]; // Если формат уже YYYY-MM-DD
-		}
-	};
-	
-	// Заполняем форму данными из data-атрибутов
-	document.getElementById('editAccrualId').value = rowElement.dataset.accrualId || '';
-	document.getElementById('editAccrualName').value = rowElement.dataset.accrualName || '';
-	document.getElementById('editAccrualNumber').value = rowElement.dataset.accrualNumber || '';
-	document.getElementById('editAccrualPartner').value = rowElement.dataset.accrualPartner || '';
-	document.getElementById('editAccrualCostItem').value = rowElement.dataset.accrualCostItem || '';
-	document.getElementById('editAccrualSum').value = rowElement.dataset.accrualSum || '';
-	document.getElementById('editAccrualRepaymentDate').value = formatDateForInput(rowElement.dataset.accrualRepaymentDate || '');
-	document.getElementById('editAccrualDescription').value = rowElement.dataset.accrualDescription || '';
-	document.getElementById('editAccrualForcedClosure').checked = rowElement.dataset.accrualForcedClosure === 'true';
-	
-	modal.showModal();
-}
-
-// Функция отправки формы редактирования начисления
-async function submitEditAccrualForm() {
-	const form = document.getElementById('editAccrualForm');
-	const formData = new FormData(form);
-	
-	const data = {
-		id: formData.get('id'),
-		name: formData.get('name'),
-		number: formData.get('number') || '',
-		partner: formData.get('partner'),
-		cost_item: formData.get('cost_item'),
-		sum: parseFloat(formData.get('sum')),
-		repayment_date: formData.get('repayment_date'),
-		description: formData.get('description') || '',
-		Forced_closure: formData.get('Forced_closure') === 'on'
-	};
-	
-	try {
-		const response = await fetch('/xapi/accruals/update-simple', {
-			method: 'PATCH',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify(data)
-		});
-		
-		if (!response.ok) {
-			const errorData = await response.json();
-			throw new Error(errorData.message || 'Ошибка при обновлении начисления');
-		}
-		
-		const result = await response.json();
-		
-		await showNotificationModal({
-			title: 'Успех',
-			message: 'Начисление успешно обновлено',
-			confirmText: 'Понятно'
-		});
-		
-		document.getElementById('editAccrualModal').close();
-		window.location.reload();
-		
-	} catch (error) {
-		await showNotificationModal({
-			title: 'Ошибка',
-			message: error.message || 'Не удалось обновить начисление',
-			confirmText: 'Понятно'
-		});
-	}
-}
-
-// Функция открытия модального окна для ручного платежа
-function openManualPaymentModal(accrualId, accrualName, balance) {
-	const modal = document.getElementById('manualPaymentModal');
-	if (!modal) return;
-	
-	// Заполняем данные о начислении
-	document.getElementById('manualPaymentAccrualId').value = accrualId;
-	document.getElementById('manualPaymentAccrualName').textContent = accrualName;
-	document.getElementById('manualPaymentBalance').textContent = formatCurrencyJS(balance);
-	
-	// Устанавливаем сумму платежа равной балансу по умолчанию
-	document.getElementById('manualPaymentSum').value = balance;
-	
-	// Устанавливаем текущую дату
-	const today = new Date().toISOString().split('T')[0];
-	document.getElementById('manualPaymentDate').value = today;
-	
-	// Очищаем остальные поля
-	document.getElementById('manualPaymentDescription').value = '';
-	document.getElementById('manualPaymentReceipts').value = '';
-	
-	modal.showModal();
-}
-
-// Обработчик отправки формы ручного платежа
-async function submitManualPaymentForm(e) {
-	e.preventDefault();
-	
-	const btn = document.getElementById('btnSubmitManualPayment');
-	const originalText = btn.innerHTML;
-	btn.disabled = true;
-	btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Создание...';
-	
-	try {
-		const form = document.getElementById('manualPaymentForm');
-		const formData = new FormData(form);
-		
-		// Отправляем данные с файлами
-		const response = await fetch('/xapi/payments/create-manual', {
-			method: 'POST',
-			body: formData
-		});
-		
-		if (!response.ok) {
-			const errorData = await response.json();
-			throw new Error(errorData.message || 'Ошибка при создании платежа');
-		}
-		
-		const result = await response.json();
-		
-		if (!result.success) {
-			throw new Error(result.message || 'Ошибка при создании платежа');
-		}
-		
-		await showNotificationModal({
-			title: 'Успех',
-			message: 'Платеж успешно создан',
-			confirmText: 'Понятно'
-		});
-		
-		// Закрываем модальное окно
-		document.getElementById('manualPaymentModal').close();
-		
-		// Перезагружаем страницу для обновления данных
-		window.location.reload();
-		
-	} catch (error) {
-		await showNotificationModal({
-			title: 'Ошибка',
-			message: error.message || 'Не удалось создать платеж',
-			confirmText: 'Понятно'
-		});
-		btn.disabled = false;
-		btn.innerHTML = originalText;
-	}
-}
-
-// Функция удаления начисления
-async function deleteAccrual() {
-	const recordId = document.getElementById('editAccrualId').value;
-	
-	if (!recordId) {
-		await showNotificationModal({
-			title: 'Ошибка',
-			message: 'ID начисления не найден',
-			confirmText: 'Понятно'
-		});
-		return;
-	}
-	
-	const confirmed = await showConfirmationModal({
-		title: 'Подтверждение удаления',
-		message: 'Вы уверены, что хотите удалить это начисление? Это действие нельзя отменить.',
-		confirmText: 'Удалить',
-		cancelText: 'Отмена'
-	});
-	
-	if (!confirmed) return;
-	
-	try {
-		const response = await fetch(`/xapi/accruals/delete-simple?id=${recordId}`, {
-			method: 'DELETE'
-		});
-		
-		if (!response.ok) {
-			const errorData = await response.json();
-			throw new Error(errorData.message || 'Ошибка при удалении начисления');
-		}
-		
-		const result = await response.json();
-		
-		await showNotificationModal({
-			title: 'Успех',
-			message: 'Начисление успешно удалено',
-			confirmText: 'Понятно'
-		});
-		
-		document.getElementById('editAccrualModal').close();
-		window.location.reload();
-		
-	} catch (error) {
-		await showNotificationModal({
-			title: 'Ошибка',
-			message: error.message || 'Не удалось удалить начисление',
-			confirmText: 'Понятно'
-		});
-	}
-}
+// Функции для модалок добавления/редактирования начислений, ручных платежей и удаления
+// УДАЛЕНЫ - теперь используется Datastar (data-on-submit, data-on-click)
 </script>

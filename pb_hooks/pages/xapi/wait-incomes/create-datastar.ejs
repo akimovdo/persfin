@@ -1,0 +1,60 @@
+<%
+/**
+ * API endpoint для создания ожидаемого дохода (Datastar версия)
+ * POST /xapi/wait-incomes/create-datastar
+ */
+meta('layout', false);
+
+if (request.method !== 'POST') {
+    datastar.patchSignals(stringify({ addWaitIncomeLoading: false }));
+    datastar.consoleError('Используйте метод POST');
+    return;
+}
+
+try {
+    datastar.patchSignals(stringify({ addWaitIncomeLoading: true }));
+    
+    const signals = datastar.readSignals(request, {
+        '$addWaitIncomeName': '',
+        '$addWaitIncomeSum': '',
+        '$addWaitIncomeMonth': ''
+    });
+    
+    console.log('[create-wait-income-datastar] Received signals:', JSON.stringify(signals));
+    
+    if (!signals['$addWaitIncomeName'] || !signals['$addWaitIncomeSum'] || !signals['$addWaitIncomeMonth']) {
+        datastar.patchSignals(stringify({ addWaitIncomeLoading: false }));
+        datastar.consoleError('Заполните все обязательные поля');
+        return;
+    }
+    
+    const collection = $app.findCollectionByNameOrId('wait_incomes');
+    const record = new Record(collection);
+    
+    record.set('name', String(signals['$addWaitIncomeName']));
+    record.set('sum', parseFloat(signals['$addWaitIncomeSum']));
+    record.set('accrual_month', String(signals['$addWaitIncomeMonth']) + '-01');
+    
+    $app.save(record);
+    
+    console.log('[create-wait-income-datastar] Created wait income:', record.id);
+    
+    datastar.patchSignals(stringify({ 
+        showAddWaitIncomeModal: false,
+        addWaitIncomeLoading: false,
+        addWaitIncomeName: '',
+        addWaitIncomeSum: '',
+        addWaitIncomeMonth: ''
+    }));
+    
+    datastar.executeScript(`
+        alert('Ожидаемый платёж успешно создан!');
+        window.location.reload();
+    `);
+    
+} catch (error) {
+    console.error('[create-wait-income-datastar] Error:', error);
+    datastar.patchSignals(stringify({ addWaitIncomeLoading: false }));
+    datastar.consoleError(error.message || 'Внутренняя ошибка сервера');
+}
+%>
