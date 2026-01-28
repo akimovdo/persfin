@@ -15,35 +15,35 @@ try {
     datastar.patchSignals(stringify({ editAccrualLoading: true }));
     
     const signals = datastar.readSignals(request, {
-        '$editAccrualId': '',
-        '$editAccrualName': '',
-        '$editAccrualNumber': '',
-        '$editAccrualPartner': '',
-        '$editAccrualCostItem': '',
-        '$editAccrualSum': '',
-        '$editAccrualRepaymentDate': '',
-        '$editAccrualDescription': '',
-        '$editAccrualForcedClosure': false
+        editAccrualId: '',
+        editAccrualName: '',
+        editAccrualNumber: '',
+        editAccrualPartner: '',
+        editAccrualCostItem: '',
+        editAccrualSum: '',
+        editAccrualRepaymentDate: '',
+        editAccrualDescription: '',
+        editAccrualForcedClosure: false
     });
     
     console.log('[update-datastar] Received signals:', JSON.stringify(signals));
     
-    if (!signals['$editAccrualId'] || !signals['$editAccrualName'] || !signals['$editAccrualPartner'] || !signals['$editAccrualCostItem'] || !signals['$editAccrualSum'] || !signals['$editAccrualRepaymentDate']) {
+    if (!signals.editAccrualId || !signals.editAccrualName || !signals.editAccrualPartner || !signals.editAccrualCostItem || !signals.editAccrualSum || !signals.editAccrualRepaymentDate) {
         datastar.patchSignals(stringify({ editAccrualLoading: false }));
         datastar.consoleError('Заполните все обязательные поля');
         return;
     }
     
-    const record = $app.findRecordById('accruals', signals['$editAccrualId']);
+    const record = $app.findRecordById('accruals', signals.editAccrualId);
     
-    record.set('name', String(signals['$editAccrualName']));
-    record.set('number', signals['$editAccrualNumber'] ? String(signals['$editAccrualNumber']) : '');
-    record.set('partner', String(signals['$editAccrualPartner']));
-    record.set('cost_item', String(signals['$editAccrualCostItem']));
-    record.set('sum', parseFloat(signals['$editAccrualSum']));
-    record.set('repayment_date', String(signals['$editAccrualRepaymentDate']));
-    record.set('description', signals['$editAccrualDescription'] ? String(signals['$editAccrualDescription']) : '');
-    record.set('Forced_closure', Boolean(signals['$editAccrualForcedClosure']));
+    record.set('name', String(signals.editAccrualName));
+    record.set('number', signals.editAccrualNumber ? String(signals.editAccrualNumber) : '');
+    record.set('partner', String(signals.editAccrualPartner));
+    record.set('cost_item', String(signals.editAccrualCostItem));
+    record.set('sum', parseFloat(signals.editAccrualSum));
+    record.set('repayment_date', String(signals.editAccrualRepaymentDate));
+    record.set('description', signals.editAccrualDescription ? String(signals.editAccrualDescription) : '');
+    record.set('Forced_closure', Boolean(signals.editAccrualForcedClosure));
     
     $app.save(record);
     

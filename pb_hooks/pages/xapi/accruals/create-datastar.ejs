@@ -21,21 +21,21 @@ try {
         addAccrualLoading: true 
     }));
     
-    // Читаем данные из Datastar сигналов (с $ префиксом!)
+    // Читаем данные из Datastar сигналов
     const signals = datastar.readSignals(request, {
-        '$addAccrualName': '',
-        '$addAccrualNumber': '',
-        '$addAccrualPartner': '',
-        '$addAccrualCostItem': '',
-        '$addAccrualSum': '',
-        '$addAccrualRepaymentDate': '',
-        '$addAccrualDescription': ''
+        addAccrualName: '',
+        addAccrualNumber: '',
+        addAccrualPartner: '',
+        addAccrualCostItem: '',
+        addAccrualSum: '',
+        addAccrualRepaymentDate: '',
+        addAccrualDescription: ''
     });
     
     console.log('[create-datastar] Received signals:', JSON.stringify(signals));
     
-    // Валидация обязательных полей (читаем с $ префиксом)
-    if (!signals['$addAccrualName'] || !signals['$addAccrualPartner'] || !signals['$addAccrualCostItem'] || !signals['$addAccrualSum'] || !signals['$addAccrualRepaymentDate']) {
+    // Валидация обязательных полей
+    if (!signals.addAccrualName || !signals.addAccrualPartner || !signals.addAccrualCostItem || !signals.addAccrualSum || !signals.addAccrualRepaymentDate) {
         datastar.patchSignals(stringify({ 
             addAccrualLoading: false 
         }));
@@ -48,13 +48,13 @@ try {
     const record = new Record(collection);
     
     // Устанавливаем значения полей
-    record.set('name', String(signals['$addAccrualName']));
-    record.set('number', signals['$addAccrualNumber'] ? String(signals['$addAccrualNumber']) : '');
-    record.set('partner', String(signals['$addAccrualPartner']));
-    record.set('cost_item', String(signals['$addAccrualCostItem']));
-    record.set('sum', parseFloat(signals['$addAccrualSum']));
-    record.set('repayment_date', String(signals['$addAccrualRepaymentDate']));
-    record.set('description', signals['$addAccrualDescription'] ? String(signals['$addAccrualDescription']) : '');
+    record.set('name', String(signals.addAccrualName));
+    record.set('number', signals.addAccrualNumber ? String(signals.addAccrualNumber) : '');
+    record.set('partner', String(signals.addAccrualPartner));
+    record.set('cost_item', String(signals.addAccrualCostItem));
+    record.set('sum', parseFloat(signals.addAccrualSum));
+    record.set('repayment_date', String(signals.addAccrualRepaymentDate));
+    record.set('description', signals.addAccrualDescription ? String(signals.addAccrualDescription) : '');
     record.set('Forced_closure', false);
     
     // Сохраняем запись

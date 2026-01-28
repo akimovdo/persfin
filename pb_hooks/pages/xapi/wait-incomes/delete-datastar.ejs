@@ -15,21 +15,21 @@ try {
     datastar.patchSignals(stringify({ editWaitIncomeLoading: true }));
     
     const signals = datastar.readSignals(request, {
-        '$editWaitIncomeId': ''
+        editWaitIncomeId: ''
     });
     
     console.log('[delete-wait-income-datastar] Received signals:', JSON.stringify(signals));
     
-    if (!signals['$editWaitIncomeId']) {
+    if (!signals.editWaitIncomeId) {
         datastar.patchSignals(stringify({ editWaitIncomeLoading: false }));
         datastar.consoleError('ID записи не указан');
         return;
     }
     
-    const record = $app.findRecordById('wait_incomes', signals['$editWaitIncomeId']);
+    const record = $app.findRecordById('wait_incomes', signals.editWaitIncomeId);
     $app.delete(record);
     
-    console.log('[delete-wait-income-datastar] Deleted wait income:', signals['$editWaitIncomeId']);
+    console.log('[delete-wait-income-datastar] Deleted wait income:', signals.editWaitIncomeId);
     
     datastar.patchSignals(stringify({ 
         showEditWaitIncomeModal: false,

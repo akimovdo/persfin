@@ -15,14 +15,14 @@ try {
     datastar.patchSignals(stringify({ addWaitIncomeLoading: true }));
     
     const signals = datastar.readSignals(request, {
-        '$addWaitIncomeName': '',
-        '$addWaitIncomeSum': '',
-        '$addWaitIncomeMonth': ''
+        addWaitIncomeName: '',
+        addWaitIncomeSum: '',
+        addWaitIncomeMonth: ''
     });
     
     console.log('[create-wait-income-datastar] Received signals:', JSON.stringify(signals));
     
-    if (!signals['$addWaitIncomeName'] || !signals['$addWaitIncomeSum'] || !signals['$addWaitIncomeMonth']) {
+    if (!signals.addWaitIncomeName || !signals.addWaitIncomeSum || !signals.addWaitIncomeMonth) {
         datastar.patchSignals(stringify({ addWaitIncomeLoading: false }));
         datastar.consoleError('Заполните все обязательные поля');
         return;
@@ -31,9 +31,9 @@ try {
     const collection = $app.findCollectionByNameOrId('wait_incomes');
     const record = new Record(collection);
     
-    record.set('name', String(signals['$addWaitIncomeName']));
-    record.set('sum', parseFloat(signals['$addWaitIncomeSum']));
-    record.set('accrual_month', String(signals['$addWaitIncomeMonth']) + '-01');
+    record.set('name', String(signals.addWaitIncomeName));
+    record.set('sum', parseFloat(signals.addWaitIncomeSum));
+    record.set('accrual_month', String(signals.addWaitIncomeMonth) + '-01');
     
     $app.save(record);
     

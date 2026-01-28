@@ -15,25 +15,25 @@ try {
     datastar.patchSignals(stringify({ editWaitIncomeLoading: true }));
     
     const signals = datastar.readSignals(request, {
-        '$editWaitIncomeId': '',
-        '$editWaitIncomeName': '',
-        '$editWaitIncomeSum': '',
-        '$editWaitIncomeMonth': ''
+        editWaitIncomeId: '',
+        editWaitIncomeName: '',
+        editWaitIncomeSum: '',
+        editWaitIncomeMonth: ''
     });
     
     console.log('[update-wait-income-datastar] Received signals:', JSON.stringify(signals));
     
-    if (!signals['$editWaitIncomeId'] || !signals['$editWaitIncomeName'] || !signals['$editWaitIncomeSum'] || !signals['$editWaitIncomeMonth']) {
+    if (!signals.editWaitIncomeId || !signals.editWaitIncomeName || !signals.editWaitIncomeSum || !signals.editWaitIncomeMonth) {
         datastar.patchSignals(stringify({ editWaitIncomeLoading: false }));
         datastar.consoleError('Заполните все обязательные поля');
         return;
     }
     
-    const record = $app.findRecordById('wait_incomes', signals['$editWaitIncomeId']);
+    const record = $app.findRecordById('wait_incomes', signals.editWaitIncomeId);
     
-    record.set('name', String(signals['$editWaitIncomeName']));
-    record.set('sum', parseFloat(signals['$editWaitIncomeSum']));
-    record.set('accrual_month', String(signals['$editWaitIncomeMonth']) + '-01');
+    record.set('name', String(signals.editWaitIncomeName));
+    record.set('sum', parseFloat(signals.editWaitIncomeSum));
+    record.set('accrual_month', String(signals.editWaitIncomeMonth) + '-01');
     
     $app.save(record);
     

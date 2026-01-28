@@ -15,21 +15,21 @@ try {
     datastar.patchSignals(stringify({ editAccrualLoading: true }));
     
     const signals = datastar.readSignals(request, {
-        '$editAccrualId': ''
+        editAccrualId: ''
     });
     
     console.log('[delete-datastar] Received signals:', JSON.stringify(signals));
     
-    if (!signals['$editAccrualId']) {
+    if (!signals.editAccrualId) {
         datastar.patchSignals(stringify({ editAccrualLoading: false }));
         datastar.consoleError('ID начисления не указан');
         return;
     }
     
-    const record = $app.findRecordById('accruals', signals['$editAccrualId']);
+    const record = $app.findRecordById('accruals', signals.editAccrualId);
     $app.delete(record);
     
-    console.log('[delete-datastar] Deleted accrual:', signals['$editAccrualId']);
+    console.log('[delete-datastar] Deleted accrual:', signals.editAccrualId);
     
     datastar.patchSignals(stringify({ 
         showEditAccrualModal: false,

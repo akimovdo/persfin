@@ -15,15 +15,15 @@ try {
     datastar.patchSignals(stringify({ manualPaymentLoading: true }));
     
     const signals = datastar.readSignals(request, {
-        '$manualPaymentAccrualId': '',
-        '$manualPaymentSum': '',
-        '$manualPaymentDate': '',
-        '$manualPaymentDescription': ''
+        manualPaymentAccrualId: '',
+        manualPaymentSum: '',
+        manualPaymentDate: '',
+        manualPaymentDescription: ''
     });
     
     console.log('[create-manual-datastar] Received signals:', JSON.stringify(signals));
     
-    if (!signals['$manualPaymentAccrualId'] || !signals['$manualPaymentSum'] || !signals['$manualPaymentDate']) {
+    if (!signals.manualPaymentAccrualId || !signals.manualPaymentSum || !signals.manualPaymentDate) {
         datastar.patchSignals(stringify({ manualPaymentLoading: false }));
         datastar.consoleError('Заполните все обязательные поля');
         return;
@@ -32,10 +32,10 @@ try {
     const collection = $app.findCollectionByNameOrId('payments');
     const record = new Record(collection);
     
-    record.set('accural', String(signals['$manualPaymentAccrualId']));
-    record.set('sum', parseFloat(signals['$manualPaymentSum']));
-    record.set('date', String(signals['$manualPaymentDate']));
-    record.set('description', signals['$manualPaymentDescription'] ? String(signals['$manualPaymentDescription']) : 'Ручной платёж');
+    record.set('accural', String(signals.manualPaymentAccrualId));
+    record.set('sum', parseFloat(signals.manualPaymentSum));
+    record.set('date', String(signals.manualPaymentDate));
+    record.set('description', signals.manualPaymentDescription ? String(signals.manualPaymentDescription) : 'Ручной платёж');
     
     $app.save(record);
     
