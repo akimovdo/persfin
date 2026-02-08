@@ -33,5 +33,8 @@
   "files": [
     "pb_hooks",
     "*.md"
-  ]
+  ],
+  "pockethost": {
+    "instanceName": "persfin"
+  }
 }

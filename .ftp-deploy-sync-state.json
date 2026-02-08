@@ -1,0 +1,455 @@
+{
+    "description": "DO NOT DELETE THIS FILE. This file is used to keep track of which files have been synced in the most recent deployment. If you delete this file a resync will need to be done (which can take a while) - read more: https://github.com/SamKirkland/FTP-Deploy-Action",
+    "version": "1.0.0",
+    "generatedTime": 1770212341328,
+    "data": [
+        {
+            "type": "file",
+            "name": "package.json",
+            "size": 956,
+            "hash": "16d36aaff8050d82fcae14c89b2bff53d86adc8a9fa1796866e81977ae1b9533"
+        },
+        {
+            "type": "folder",
+            "name": "pb_migrations"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks"
+        },
+        {
+            "type": "file",
+            "name": "pb_migrations/1762980455_collections_snapshot.js",
+            "size": 171218,
+            "hash": "1bd428f0bd76c85793a7d1bcc9f863d66fc3f902364d6c606ee6e750ed889e84"
+        },
+        {
+            "type": "file",
+            "name": "pb_migrations/1730472100_fix_wait_incomes_days_difference_calculation.js",
+            "size": 1808,
+            "hash": "5c7c741c705abc9261797fb43bd6eb8fbe16d602025b673b557eb2528436340f"
+        },
+        {
+            "type": "file",
+            "name": "pb_migrations/1730472000_fix_accruals_days_difference_calculation.js",
+            "size": 2410,
+            "hash": "65c03676c8741ce610d1f315e23990f852816cc7a0689e6398c49d556dec6a72"
+        },
+        {
+            "type": "file",
+            "name": "pb_migrations/1730462400_updated_accruals_all_with_status_add_accrual_id.js",
+            "size": 2778,
+            "hash": "8e2a90f22357c13de4796f9178a6472db7941bf7586c0544468200491854ba59"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pocketpages.pb.js",
+            "size": 23,
+            "hash": "83f80163c8424e9245990124ea42a8b74425828cf66395cb680498225d26f275"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/xapi"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/index.ejs",
+            "size": 5598,
+            "hash": "9a0c2693c76eb54e10349779c22c4c7ee86fc0b584f63ccdab6f3a68ed457358"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/dashboard"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/auth"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/app.tailwind.css",
+            "size": 59,
+            "hash": "cc1a7ad0d019ddb1d32d0ecb588ba0ac26ce41d8625dd6c366348b25f83a28ec"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/app.css",
+            "size": 145862,
+            "hash": "eb92add1a6a13ed0d5ff2d720a09019d7867de045a0d70a428b0045eaec56fdc"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/_private"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/+layout.ejs",
+            "size": 5353,
+            "hash": "400f717f2bbc96af6887b4c87906bc202d9b01ebaad56909d14392e593013099"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/+config.js",
+            "size": 366,
+            "hash": "82ed5f5a0ec479f5936b9cf11726f015005b06dfd64d13083746361058f529cf"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/xapi/wait-incomes"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/xapi/tochka"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/xapi/payments"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/xapi/partners"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/xapi/monthly-payments"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/xapi/accruals"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/wait-incomes/update.ejs",
+            "size": 1996,
+            "hash": "f27daf1667be60bd602477bdf6a6fc32a9512fa27fc6c92036fbc8280a312f04"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/wait-incomes/update-datastar.ejs",
+            "size": 2145,
+            "hash": "9adea7e7a3afa43077bc240f27d488633955866213bbeb38e69ad74a8446a997"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/wait-incomes/generate-from-planned.ejs",
+            "size": 4235,
+            "hash": "4a675435267ad5bc08c94c476bcdca711d40bfe54669e04c6e5f68a53f88b627"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/wait-incomes/delete.ejs",
+            "size": 951,
+            "hash": "cd452f8689c49d74be0338a366cbe9182014472db067b069bb4fb427e0e1cb4b"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/wait-incomes/delete-datastar.ejs",
+            "size": 1603,
+            "hash": "612eac4f30d816ca4c6218ccb56ee980a65acbac1a32fab4f2baed33240b60fd"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/wait-incomes/create.ejs",
+            "size": 3661,
+            "hash": "aee67ad5dd44f028989bb405ab66ac261feb199d66ecd1635abab8bae7fd76f4"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/wait-incomes/create-datastar.ejs",
+            "size": 2061,
+            "hash": "cc0b27fbeda8b79d5c97750826553168d2a0c39b4816fb8d9db150d92096435a"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/unallocated-payments.ejs",
+            "size": 4155,
+            "hash": "c044313964a7cea0a360dc7b34142a005af6fc42efbca461fe494e7c0699fd93"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/statements-list.ejs",
+            "size": 1075,
+            "hash": "e7c5468addc319e059f51dd167ddfbadbe1043b4f2daf6893e3fb05c71d4ee85"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/statement.ejs",
+            "size": 3403,
+            "hash": "3d20a4d6e0e3812ba507daa6a3742b19a3fdade2076d124e8e8067e389edf508"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/save-allocations.ejs",
+            "size": 2620,
+            "hash": "c7081c996d868d0f9283709d1aab927a0da30cd71dd6ba3b035b6c660b106c0b"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/init-statement.ejs",
+            "size": 6978,
+            "hash": "119717067bab4dde9c31e296ebafbbe03413ff3d5d27b534c9c59c8168754d3f"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/config-info.ejs",
+            "size": 984,
+            "hash": "53346951ee23a12d3803d2608cc496a658b03113145ae9ab82a9ac48de171198"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/auto-sync.ejs",
+            "size": 2733,
+            "hash": "821e84cc47bd82be5f1a5d55a031bbad3d0424f382015748e425f1f9c498b5d7"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/+middleware.js",
+            "size": 1585,
+            "hash": "966387ba42bd272eb67327daab72fa1a0fc7960f32d5dbaae59acec069c20c10"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/tochka/+load.js",
+            "size": 11768,
+            "hash": "641143b3f9517d38f040a2cfeaa91eefce154663d797457d29d278c35dd37936"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/payments/update.ejs",
+            "size": 2574,
+            "hash": "9d73909c9df8ee628924553e6b4584f10706ace89fd48a9d099285356b39e735"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/payments/mark-internal-transfers.ejs",
+            "size": 1442,
+            "hash": "719681c2018939a1cf743c774c113446b858458e64d7b86697b90018f9382f81"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/payments/get_one.ejs",
+            "size": 2012,
+            "hash": "1ed742b1140bde64b1bc1baf0cca9af581eb3adfcadd8747ad072fd417b7ceaf"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/payments/delete.ejs",
+            "size": 995,
+            "hash": "b9579b62897303a14782179bc0c5af2757b13ad54816340cd00d3dd8bf1bc7ea"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/payments/create.ejs",
+            "size": 1957,
+            "hash": "1e3e08984b1c3cffc958388f8555b9620815bffa49a811bc180adc9799653998"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/payments/create-manual.ejs",
+            "size": 3846,
+            "hash": "c87fa6e63c4a311267ff3278ef3796a5f09f351b09e930972177085ab7a74b55"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/payments/create-manual-datastar.ejs",
+            "size": 2305,
+            "hash": "579f6bda4150d626942358390cd55ebdfbc7cbb9936663f92a1ce438e93f63d9"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/partners/update.ejs",
+            "size": 1488,
+            "hash": "366719053de8e9ca99bb2b01bc943c96b876e49500f3dda3ca5b715a54541f76"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/partners/get_one.ejs",
+            "size": 1361,
+            "hash": "c421e35a08f9c443982a9cd25a6d3e8383e1047ac699379cd4c25f583878fb60"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/partners/delete.ejs",
+            "size": 975,
+            "hash": "c459bb320a1e432a9b310775ca0da5a2e539e23d2f1ba34ad18f7396b905a651"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/partners/create.ejs",
+            "size": 1276,
+            "hash": "fc651a01caa67c4e96ec7d0136c98ed4e3e65a12fa69528898ca7f9a16e041bf"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/monthly-payments/update.ejs",
+            "size": 2533,
+            "hash": "b135d92cf65b267d43a2ba39a476c47dd55b2ebbb88f4c168e9d6d5ddf6e008d"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/monthly-payments/delete.ejs",
+            "size": 1056,
+            "hash": "09a9ba2b5709064fc9f4399f9277900f8e6094bc5cc6da7f7248197e9330e428"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/monthly-payments/create.ejs",
+            "size": 2374,
+            "hash": "df9bb7196f5c5b478b69ad1dd02f97231ff65bc052cc070c67bd738492dcbfee"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/accruals/update.ejs",
+            "size": 3438,
+            "hash": "393b62b75eabce14994b2e44af2ea81f5a55bda6e06cbf24a178cd77fb9fcd60"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/accruals/update-datastar.ejs",
+            "size": 2852,
+            "hash": "9813a25696f98271b9b1962af4d5271d3a3e291489733665ef6d9f3fc191540d"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/accruals/get_one.ejs",
+            "size": 2443,
+            "hash": "6408daf0f2a852fcba17d010c07801098ea7ad235575f771ba43dcb727b61125"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/accruals/delete.ejs",
+            "size": 1417,
+            "hash": "25fa84fb4215778f7141b6dfb7552b5faeaa8c7f1438fe2d18b72e5dd4cd7094"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/accruals/delete-datastar.ejs",
+            "size": 1544,
+            "hash": "754d3035720aa75d02347e2ffc39556a6ca4b242f7ef36dd260735c7d7984a07"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/accruals/create-simple.ejs",
+            "size": 1967,
+            "hash": "853090eddaefe723985563b8d3d67e834e72951f475e0f0053b9c694d1ca70ab"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/xapi/accruals/create-datastar.ejs",
+            "size": 3405,
+            "hash": "9607fa341e6982f99737c05ca326e0c7920da4b45809db7124df9f58fc862117"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/dashboard/payments"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/dashboard/partners"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/index.ejs",
+            "size": 67,
+            "hash": "03ef74b5ef670261f4d78cbc5b5eed7fbc5d2b7eebf29db1df9fc4e2c0330e97"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/dashboard/accruals"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/dashboard/_private"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/payments/index.ejs",
+            "size": 20340,
+            "hash": "c5baffd2a75c75d19ce4bdb13a9b89dd876789ca02124c7156d5b0ac14c27e21"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/payments/+load.js",
+            "size": 4780,
+            "hash": "2e1441ed65904a8357bd515cc6f2daa0cedd467bef6652df578201e6ce15ae02"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/partners/index.ejs",
+            "size": 12186,
+            "hash": "45268a9635b035753daf93be26d5d73b7dc42dc22f872ab6ffa93cf7964156f3"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/partners/+load.js",
+            "size": 2415,
+            "hash": "3928e6b39e0e06e01fb379b30c1cece89bb68dfae6bf44324497680c43f03ad7"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/accruals/index.ejs",
+            "size": 20635,
+            "hash": "5a9523410f0055d625a2194c718adae747d78813b3f818fc13706b1e95d56f9f"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/accruals/+load.js",
+            "size": 4271,
+            "hash": "6643eaa1fb3f577745365fca459f2d3b1e8aab0113c1dcb664abecc99eaf8d89"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/_private/accruals_all_with_status.ejs",
+            "size": 101178,
+            "hash": "e9652ea288b79f27579878ac83d499895b1eb241c6336ac4e7c19e1136077e32"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/_private/_monthly_payments.ejs",
+            "size": 21977,
+            "hash": "9cca3bbfe049535a1d3999b6b1f5fb099a48189fde362e7fcf31d6e93ea30371"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/dashboard/_private/_menu.ejs",
+            "size": 848,
+            "hash": "510493641732229eb25d147bce04f61e8dcc0fd6a183a1e9f0f7db256f4803bb"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/auth/logout"
+        },
+        {
+            "type": "folder",
+            "name": "pb_hooks/pages/auth/login"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/auth/logout/index.ejs",
+            "size": 56,
+            "hash": "696e215b4bc73b3a1381487f3656684942fb721ec2a990aacd4af69487e880a4"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/auth/login/index.ejs",
+            "size": 3309,
+            "hash": "5fbd3862e15e3a557ad4fd6fdf978fa01bb2b004a5a1a60e1076078407ba5767"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/_private/_toast.ejs",
+            "size": 3045,
+            "hash": "d4135289ad81faf905fb4e666520c908ff3f4c849a5bc2f02645d6b82a42406a"
+        },
+        {
+            "type": "file",
+            "name": "pb_hooks/pages/_private/_confirm_dialog.ejs",
+            "size": 5025,
+            "hash": "7a166541a2ba97a181735beae02c7f18048c9b315d83bc39e816a2b4f8bd8196"
+        }
+    ]
+}
